@@ -19,7 +19,7 @@ Più leggera e più semplice, con una guida per cominciare.
 - Lo storico in memoria si ferma a 60 valori per misura, quelli che i grafici mostrano.
 - Disco: al posto delle velocità di lettura e scrittura, una barra con lo spazio occupato. Nessuna lettura continua dei dischi.
 
-
+## 0.4.0 · 2026-10-13
 
 Prima versione pubblica.
 
