@@ -48,8 +48,8 @@ struct SystemPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             SummaryHeader(summary: monitor.summary)
-            Divider()
-            VStack(alignment: .leading, spacing: 12) {
+                .padding(.horizontal, 4)
+            VStack(alignment: .leading, spacing: 8) {
                 cpuRow
                 memoryRow
                 networkRow
@@ -68,7 +68,8 @@ struct SystemPanel: View {
         MetricRow(symbol: "cpu", title: L("CPU"),
                   value: c.map { Format.percent($0.total) } ?? "–",
                   caption: c.map { L("Utente %@ · Sistema %@", Format.percent($0.user), Format.percent($0.system)) },
-                  values: h.recent(.cpu, 60), upperBound: 1, trend: trendText(h[.cpu]),
+                  values: h.recent(.cpu, 60), upperBound: 1, tint: Palette.load(Severity.load(c?.total ?? 0)),
+                  trend: trendText(h[.cpu]),
                   expanded: binding("cpu")) {
             if advanced, let c {
                 DetailHeading(text: L("Core"))
@@ -87,7 +88,8 @@ struct SystemPanel: View {
         MetricRow(symbol: "memorychip", title: L("Memoria"),
                   value: m.map { Format.percent($0.usedFraction) } ?? "–",
                   caption: m.map { L("%@ di %@", Format.bytes($0.used), Format.bytes($0.total)) },
-                  values: h.recent(.memory, 60), upperBound: 1, trend: trendText(h[.memory]),
+                  values: h.recent(.memory, 60), upperBound: 1, tint: Palette.load(m.map { Severity.memory($0) } ?? 0),
+                  trend: trendText(h[.memory]),
                   expanded: binding("memory")) {
             if let m {
                 DetailLine(label: L("Pressione"), value: m.pressure.title)
@@ -111,6 +113,7 @@ struct SystemPanel: View {
                   value: n.map { "↓ " + Format.rate($0.download) } ?? "–",
                   caption: n.map { "↑ " + Format.rate($0.upload) },
                   values: h.recent(.download, 60), upperBound: nil, secondary: h.recent(.upload, 60),
+                  tint: Palette.download, secondaryTint: Palette.upload,
                   trend: trendText(h[.download]),
                   expanded: binding("network")) {
             if let n {
@@ -130,7 +133,9 @@ struct SystemPanel: View {
         MetricRow(symbol: "thermometer.medium", title: L("Temperatura"),
                   value: t?.chip.map(Format.celsius) ?? "–",
                   caption: t?.gpu.map { L("GPU %@", Format.celsius($0)) },
-                  values: h.recent(.temperature, 60), upperBound: 110, trend: trendText(h[.temperature]),
+                  values: h.recent(.temperature, 60), upperBound: 110,
+                  tint: Palette.load(t?.chip.map(Severity.temperature) ?? 0),
+                  trend: trendText(h[.temperature]),
                   expanded: binding("temperature")) {
             if let t {
                 if let chip = t.chip { DetailLine(label: L("Chip, il punto più caldo"), value: Format.celsius(chip)) }
@@ -149,7 +154,8 @@ struct SystemPanel: View {
         MetricRow(symbol: "square.stack.3d.up", title: L("GPU"),
                   value: g.map { Format.percent($0.utilization) } ?? "–",
                   caption: g?.memoryUsed.map { L("%@ di memoria", Format.bytes($0)) },
-                  values: h.recent(.gpu, 60), upperBound: 1, trend: trendText(h[.gpu]),
+                  values: h.recent(.gpu, 60), upperBound: 1, tint: Palette.load(Severity.load(g?.utilization ?? 0)),
+                  trend: trendText(h[.gpu]),
                   expanded: binding("gpu")) {
             if let g {
                 DetailLine(label: L("Utilizzo"), value: Format.percent(g.utilization))
@@ -164,6 +170,7 @@ struct SystemPanel: View {
                   value: d.map { L("%@ liberi", Format.diskBytes($0.free)) } ?? "–",
                   caption: d.map { L("di %@", Format.diskBytes($0.total)) },
                   values: h.recent(.diskRead, 60), upperBound: nil, secondary: h.recent(.diskWrite, 60),
+                  tint: Palette.load(d.map { Severity.remaining($0.freeFraction) } ?? 0),
                   trend: nil,
                   expanded: binding("disk")) {
             if let d {
@@ -181,7 +188,9 @@ struct SystemPanel: View {
                   title: b != nil ? L("Batteria") : L("Consumo"),
                   value: b.map { Format.percent($0.level) } ?? watts.map(Format.watts) ?? "–",
                   caption: b.map(batteryCaption) ?? nil,
-                  values: h.recent(.power, 60), upperBound: nil, trend: nil,
+                  values: h.recent(.power, 60), upperBound: nil,
+                  tint: Palette.load(b.map { Severity.remaining($0.level) } ?? watts.map(Severity.watts) ?? 0),
+                  trend: nil,
                   expanded: binding("energy")) {
             if let watts { DetailLine(label: L("Consumo del Mac"), value: Format.watts(watts)) }
             if let b {

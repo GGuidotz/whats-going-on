@@ -1,6 +1,7 @@
 // Il pannello che si apre dalla barra dei menu. Le HIG chiedono un menu, salvo funzioni troppo complesse
-// (the-menu-bar.md › Menu bar extras): grafici dal vivo e dettagli che si aprono lo sono, quindi è un pannello,
-// con le azioni in fondo raggiungibili da tastiera (⌘, e ⌘Q).
+// (the-menu-bar.md › Menu bar extras): grafici dal vivo e dettagli che si aprono lo sono, quindi è un pannello.
+// È un popover: su macOS 26 il vetro lo mette il sistema. In fondo, i controlli che galleggiano: pulsanti di vetro
+// (Impostazioni ⌘, ed Esci ⌘Q) e, quando c'è, la nuova versione.
 
 import AppKit
 import SwiftUI
@@ -11,39 +12,79 @@ private struct HeightKey: PreferenceKey {
 }
 
 struct PanelView: View {
-    @ObservedObject var monitor: SystemMonitor
+    @ObservedObject var model: AppModel
     @ObservedObject var prefs: Preferences
+    @ObservedObject var updater: Updater
+    var close: () -> Void
     @State private var contentHeight: CGFloat = 420
 
-    private var maxHeight: CGFloat { max(320, (NSScreen.main?.visibleFrame.height ?? 800) - 120) }
+    init(model: AppModel, close: @escaping () -> Void) {
+        self.model = model
+        prefs = model.prefs
+        updater = model.updater
+        self.close = close
+    }
+
+    private var maxHeight: CGFloat { max(320, (NSScreen.main?.visibleFrame.height ?? 800) - 140) }
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                SystemPanel(monitor: monitor, advanced: prefs.advanced)
-                    .padding(16)
+                SystemPanel(monitor: model.monitor, advanced: prefs.advanced)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 14)
+                    .padding(.bottom, 8)
                     .background(GeometryReader { Color.clear.preference(key: HeightKey.self, value: $0.size.height) })
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(height: min(contentHeight, maxHeight))
             .onPreferenceChange(HeightKey.self) { contentHeight = $0 }
 
-            Divider()
-            HStack {
-                SettingsLink {
-                    Text(L("Impostazioni…"))
-                }
-                .simultaneousGesture(TapGesture().onEnded { NSApp.activate() })
-                Spacer()
-                Button(L("Esci")) { NSApp.terminate(nil) }
-                    .keyboardShortcut("q")
-            }
-            .buttonStyle(.borderless)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            footer
         }
         .frame(width: 360)
-        .onAppear { monitor.isPanelOpen = true }
-        .onDisappear { monitor.isPanelOpen = false }
+    }
+
+    private var footer: some View {
+        GlassGroup(spacing: 8) {
+            HStack(spacing: 8) {
+                Button {
+                    close()
+                    model.showSettings(nil)
+                } label: {
+                    Label(L("Impostazioni"), systemImage: "gearshape")
+                }
+                .keyboardShortcut(",")
+                .glassButton()
+                .help(L("Impostazioni") + " (⌘,)")
+
+                if case .available(let version) = updater.state {
+                    Button {
+                        close()
+                        model.showSettings(.updates)
+                    } label: {
+                        Label(L("Versione %@", version), systemImage: "arrow.down.circle.fill")
+                    }
+                    .glassProminentButton()
+                    .tint(Palette.calm)
+                    .help(L("È disponibile una nuova versione"))
+                }
+
+                Spacer(minLength: 0)
+
+                Button {
+                    NSApp.terminate(nil)
+                } label: {
+                    Label(L("Esci"), systemImage: "power")
+                }
+                .keyboardShortcut("q")
+                .glassButton()
+                .help(L("Esci da What's Going On") + " (⌘Q)")
+            }
+            .labelStyle(.titleAndIcon)
+            .controlSize(.regular)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 }

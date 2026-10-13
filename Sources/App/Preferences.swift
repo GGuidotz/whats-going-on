@@ -68,6 +68,7 @@ final class Preferences: ObservableObject {
     }
     @Published var alerts: AlertSettings { didSet { save(alerts, "alerts") } }
     @Published var alertDestination: AlertDestination { didSet { save(alertDestination, "alertDestination") } }
+    @Published var autoCheckUpdates: Bool { didSet { defaults.set(autoCheckUpdates, forKey: "autoCheckUpdates") } }
 
     init() {
         func load<T: Decodable>(_ key: String, _ fallback: T) -> T {
@@ -85,6 +86,7 @@ final class Preferences: ObservableObject {
         language = load("language", AppLanguage.system)
         alerts = load("alerts", AlertSettings())
         alertDestination = load("alertDestination", AlertDestination.cocaine)
+        autoCheckUpdates = UserDefaults.standard.object(forKey: "autoCheckUpdates") as? Bool ?? true
         Localization.language = language
     }
 

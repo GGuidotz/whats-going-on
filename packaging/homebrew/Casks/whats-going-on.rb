@@ -31,7 +31,9 @@ cask "whats-going-on" do
   zap trash: "~/Library/Preferences/local.whatsgoingon.app.plist"
 
   caveats <<~EOS
-    What's Going On vive nella barra dei menu. Gli avvisi arrivano nell'isola di Cocaine se è aperto:
+    What's Going On lives in the menu bar. Alerts can go to Cocaine's island:
       brew install --cask mattiakart/tap/cocaine
+    Cocaine shows them while you're at the Mac only with AI alerts > When > Also at the Mac;
+    otherwise What's Going On also sends a macOS notification.
   EOS
 end

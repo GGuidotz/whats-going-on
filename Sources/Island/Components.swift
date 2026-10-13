@@ -1,4 +1,6 @@
 // I mattoni del pannello: riga di una misura (si apre con un clic), righe di dettaglio, barre dei core, elenco app.
+// Ogni riga è una scheda del contenuto (riempimento standard, niente vetro); il colore del simbolo e del grafico segue
+// la scala del carico, il valore resta scritto: il colore non è mai l'unico segnale.
 
 import SwiftUI
 
@@ -10,6 +12,8 @@ struct MetricRow<Detail: View>: View {
     var values: [Double]
     var upperBound: Double?
     var secondary: [Double]? = nil
+    var tint: Color = .accentColor
+    var secondaryTint: Color? = nil
     var trend: String?
     @Binding var expanded: Bool
     @ViewBuilder var detail: () -> Detail
@@ -23,8 +27,8 @@ struct MetricRow<Detail: View>: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: symbol)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(tint)
                         .frame(width: 20)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(title).font(.subheadline).foregroundStyle(.secondary)
@@ -34,7 +38,8 @@ struct MetricRow<Detail: View>: View {
                         }
                     }
                     Spacer(minLength: 8)
-                    Sparkline(values: values, upperBound: upperBound, secondary: secondary)
+                    Sparkline(values: values, upperBound: upperBound, secondary: secondary, tint: tint,
+                              secondaryTint: secondaryTint)
                         .frame(width: 112, height: 30)
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.semibold))
@@ -55,6 +60,7 @@ struct MetricRow<Detail: View>: View {
                     .transition(.opacity)
             }
         }
+        .contentCard(padding: 10)
     }
 }
 
@@ -93,7 +99,7 @@ struct CoreBars: View {
             ForEach(Array(cores.enumerated()), id: \.offset) { _, v in
                 ZStack(alignment: .bottom) {
                     RoundedRectangle(cornerRadius: 1.5).fill(.quaternary)
-                    RoundedRectangle(cornerRadius: 1.5).fill(Color.accentColor)
+                    RoundedRectangle(cornerRadius: 1.5).fill(Palette.load(Severity.load(v)))
                         .frame(height: max(1.5, 28 * min(1, v)))
                 }
                 .frame(height: 28)

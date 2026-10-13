@@ -11,6 +11,8 @@ struct Sparkline: View {
     var slots = 60
     var secondary: [Double]? = nil
     var tint: Color = .accentColor
+    /// Colore della seconda serie; nil = lo stesso della prima, più tenue e tratteggiato.
+    var secondaryTint: Color? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -19,8 +21,13 @@ struct Sparkline: View {
                 area(values, top, geo.size).fill(tint.opacity(0.16))
                 line(values, top, geo.size).stroke(tint, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
                 if let secondary {
-                    line(secondary, top, geo.size)
-                        .stroke(tint.opacity(0.7), style: StrokeStyle(lineWidth: 1.2, lineCap: .round, dash: [2.5, 2]))
+                    if let secondaryTint {
+                        line(secondary, top, geo.size)
+                            .stroke(secondaryTint, style: StrokeStyle(lineWidth: 1.3, lineCap: .round, lineJoin: .round))
+                    } else {
+                        line(secondary, top, geo.size)
+                            .stroke(tint.opacity(0.7), style: StrokeStyle(lineWidth: 1.2, lineCap: .round, dash: [2.5, 2]))
+                    }
                 }
             }
         }
