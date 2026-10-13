@@ -65,7 +65,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             button.toolTip = "What's Going On"
             button.setAccessibilityLabel("What's Going On")
         } else {
-            button.image = MenuBarRenderer.image(entries, dark: isDark)
+            button.image = MenuBarRenderer.image(entries, dark: isDark, layout: prefs.menuBarLayout)
             let spoken = MenuBarRenderer.spokenLabel(entries)
             button.toolTip = model.monitor.summary.title + "\n" + spoken
             button.setAccessibilityLabel("What's Going On: " + spoken)

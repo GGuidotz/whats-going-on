@@ -3,7 +3,7 @@
 Cosa succede nel tuo Mac, in una frase. [English](README.en.md)
 
 What's Going On vive nella barra dei menu di macOS e mostra CPU, memoria e rete in poco spazio: per ogni misura una
-sigla scritta in verticale e il valore accanto, colorato dal verde al rosso con il carico. La rete ha due righe, upload
+sigla in colonna, una lettera sotto l'altra, e il valore accanto, colorato dal verde al rosso con il carico. La rete ha due righe, upload
 e download, ognuna col suo colore. Aprendo il pannello, in cima c'è una frase che dice la cosa più importante adesso:
 "Tutto tranquillo", oppure "Google Chrome usa il 180% della CPU da 4 min". Sotto, una scheda per ogni misura con il
 grafico degli ultimi secondi; un clic apre i dettagli.

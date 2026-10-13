@@ -8,7 +8,7 @@ cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggi
 Prima versione pubblica.
 
 ### Novità
-- Barra dei menu piccola e colorata: per ogni misura una sigla in verticale (CPU, RAM, RETE…) e il valore accanto, dal verde al rosso con il carico. La rete ha due righe, upload e download, con colori propri e la freccia davanti.
+- Barra dei menu piccola e colorata: per ogni misura una sigla in colonna, una lettera sotto l'altra (C/P/U, R/A/M…), e il valore accanto in cifre alte e strette, dal verde al rosso con il carico. La rete ha due righe, upload e download, con colori propri e la freccia davanti. Spazio tra le voci e tra sigla e valore regolabili.
 - Pannello con la frase che dice cosa succede e una scheda per misura, con grafico e dettagli: CPU, memoria, rete, temperatura, GPU, disco, batteria e consumo.
 - App più attive per CPU e per memoria, con gli aiutanti sommati all'app che li contiene.
 - Avvisi con soglie nell'isola di Cocaine o come notifiche di macOS.

@@ -61,6 +61,9 @@ final class Preferences: ObservableObject {
     @Published var moduleOrder: [MenuBarModule] { didSet { save(moduleOrder, "moduleOrder") } }
     @Published var enabledModules: Set<MenuBarModule> { didSet { save(enabledModules, "enabledModules") } }
     @Published var style: MenuBarStyle { didSet { save(style, "style") } }
+    /// Punti tra una voce e l'altra della barra, e tra la sigla e il suo valore.
+    @Published var itemSpacing: Double { didSet { defaults.set(itemSpacing, forKey: "itemSpacing") } }
+    @Published var labelGap: Double { didSet { defaults.set(labelGap, forKey: "labelGap") } }
     @Published var interval: Double { didSet { defaults.set(interval, forKey: "interval") } }
     @Published var advanced: Bool { didSet { defaults.set(advanced, forKey: "advanced") } }
     @Published var language: AppLanguage {
@@ -81,6 +84,8 @@ final class Preferences: ObservableObject {
         moduleOrder = order
         enabledModules = load("enabledModules", [.cpu, .memory, .network])
         style = load("style", MenuBarStyle.values)
+        itemSpacing = UserDefaults.standard.object(forKey: "itemSpacing") as? Double ?? 5
+        labelGap = UserDefaults.standard.object(forKey: "labelGap") as? Double ?? 1
         interval = UserDefaults.standard.object(forKey: "interval") as? Double ?? 2
         advanced = UserDefaults.standard.bool(forKey: "advanced")
         language = load("language", AppLanguage.system)
@@ -89,6 +94,8 @@ final class Preferences: ObservableObject {
         autoCheckUpdates = UserDefaults.standard.object(forKey: "autoCheckUpdates") as? Bool ?? true
         Localization.language = language
     }
+
+    var menuBarLayout: MenuBarLayout { MenuBarLayout(itemSpacing: itemSpacing, labelGap: labelGap) }
 
     /// I moduli accesi, nell'ordine scelto.
     var visibleModules: [MenuBarModule] { moduleOrder.filter { enabledModules.contains($0) } }

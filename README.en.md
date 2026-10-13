@@ -3,7 +3,7 @@
 What's happening on your Mac, in one sentence. [Italiano](README.md)
 
 What's Going On lives in the macOS menu bar and shows CPU, memory and network in very little space: for each reading a
-small vertical label and the value next to it, colored from green to red as the load rises. Network has two lines,
+small label stacked one letter under the other, and the value next to it, colored from green to red as the load rises. Network has two lines,
 upload and download, each in its own color. Open the panel and the top line tells you the one thing that matters right
 now: "All quiet", or "Google Chrome is using 180% CPU for 4 min". Below it, a card per reading with a live graph; click
 one for details.

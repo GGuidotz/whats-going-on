@@ -100,10 +100,12 @@ private struct MenuBarSettings: View {
                     ForEach(MenuBarStyle.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                SpacingSlider(title: L("Spazio tra le voci"), value: $prefs.itemSpacing, range: 0...12, step: 1)
+                SpacingSlider(title: L("Spazio tra sigla e valore"), value: $prefs.labelGap, range: 0...4, step: 0.5)
             } header: {
                 Text(L("Anteprima"))
             } footer: {
-                Footnote(L("Il colore dei valori va dal verde al rosso con il carico; upload e download hanno colori propri. La sigla accanto dice cosa stai guardando."))
+                Footnote(L("Il colore dei valori va dal verde al rosso con il carico; upload e download hanno colori propri. La sigla accanto, una lettera sotto l'altra, dice cosa stai guardando. Con gli spazi a zero la barra è la più stretta possibile."))
             }
 
             Section {
@@ -134,6 +136,29 @@ private struct MenuBarSettings: View {
     }
 }
 
+/// Uno spazio della barra in punti, con il valore scritto accanto.
+private struct SpacingSlider: View {
+    var title: String
+    @Binding var value: Double
+    var range: ClosedRange<Double>
+    var step: Double
+
+    var body: some View {
+        LabeledContent(title) {
+            HStack(spacing: 10) {
+                Slider(value: $value, in: range, step: step)
+                    .frame(width: 180)
+                    .accessibilityLabel(title)
+                    .accessibilityValue(L("%@ punti", Format.number(value, digits: step < 1 ? 1 : 0)))
+                Text(L("%@ pt", Format.number(value, digits: step < 1 ? 1 : 0)))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, alignment: .trailing)
+            }
+        }
+    }
+}
+
 /// La barra com'è adesso, su una barra chiara e su una scura.
 private struct MenuBarPreview: View {
     @ObservedObject var monitor: SystemMonitor
@@ -154,7 +179,7 @@ private struct MenuBarPreview: View {
             if entries.isEmpty {
                 Image(systemName: "waveform.path.ecg").foregroundStyle(dark ? Color.white : Color.black)
             } else {
-                Image(nsImage: MenuBarRenderer.image(entries, dark: dark))
+                Image(nsImage: MenuBarRenderer.image(entries, dark: dark, layout: prefs.menuBarLayout))
             }
         }
         .padding(.horizontal, 12)

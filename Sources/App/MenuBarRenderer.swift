@@ -1,10 +1,12 @@
-// Ciò che si vede nella barra dei menu, disegnato con AppKit: per ogni misura una sigla scritta in verticale (CPU, RAM,
-// RETE…) e il valore accanto, colorato sulla scala del carico (verde, giallo, arancio, rosso). La rete ha due righe,
+// Ciò che si vede nella barra dei menu, disegnato con AppKit: per ogni misura una sigla in colonna, una lettera sotto
+// l'altra (C/P/U, R/A/M…), e il valore accanto in cifre alte e strette, colorato sulla scala del carico (verde, giallo,
+// arancio, rosso). Gli spazi tra le voci e tra sigla e valore si regolano nelle impostazioni (MenuBarLayout). La rete ha due righe,
 // upload sopra e download sotto, con due colori fuori dalla scala e la freccia davanti: il colore non è mai l'unico
 // segnale. Ogni voce ha una larghezza fissa e cifre tabellari, così la barra non si sposta quando i numeri cambiano.
 // L'immagine non è un modello (template): i colori li sceglie l'app, in base all'aspetto della barra (chiara o scura).
 
 import AppKit
+import CoreText
 
 struct MenuBarEntry {
     struct Bar {
@@ -24,14 +26,33 @@ struct MenuBarEntry {
     var content: Content
 }
 
+/// Gli spazi della barra, in punti: tra una voce e l'altra e tra la sigla e il suo valore.
+struct MenuBarLayout: Equatable {
+    var itemSpacing: CGFloat = 5
+    var labelGap: CGFloat = 1
+}
+
 enum MenuBarRenderer {
     static let height: CGFloat = 22
     private static let barCount = 12
 
-    private static let labelFont = NSFont.systemFont(ofSize: 7, weight: .bold, width: .condensed)
-    private static let valueFont = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .semibold)
-    private static let unitFont = NSFont.systemFont(ofSize: 8, weight: .bold)
-    private static let networkFont = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
+    // Cifre alte e strette (SF condensato, cifre tabellari): più leggibili nella stessa larghezza di prima.
+    private static let valueFont = tabular(NSFont.systemFont(ofSize: 15, weight: .semibold, width: .condensed))
+    private static let unitFont = NSFont.systemFont(ofSize: 9, weight: .bold, width: .condensed)
+    private static let networkFont = tabular(NSFont.systemFont(ofSize: 10.5, weight: .semibold, width: .condensed))
+
+    /// La sigla in colonna: più corta è, più grandi le lettere (3 lettere 6,5 pt, 4 lettere 5,5 pt).
+    private static func labelFont(letters: Int) -> NSFont {
+        NSFont.systemFont(ofSize: letters <= 3 ? 6.5 : 5.5, weight: .heavy)
+    }
+
+    /// Cifre della stessa larghezza, così i numeri non ballano.
+    private static func tabular(_ font: NSFont) -> NSFont {
+        let feature: [NSFontDescriptor.FeatureKey: Int] = [.typeIdentifier: kNumberSpacingType,
+                                                           .selectorIdentifier: kMonospacedNumbersSelector]
+        let descriptor = font.fontDescriptor.addingAttributes([.featureSettings: [feature]])
+        return NSFont(descriptor: descriptor, size: font.pointSize) ?? font
+    }
 
     // MARK: - Dati
 
@@ -102,14 +123,14 @@ enum MenuBarRenderer {
     // MARK: - Disegno
 
     /// L'immagine per la barra. `dark` = la barra è scura (testo chiaro).
-    static func image(_ entries: [MenuBarEntry], dark: Bool) -> NSImage {
-        let widths = entries.map(width)
-        let spacing: CGFloat = 8
-        let total = max(1, widths.reduce(0, +) + spacing * CGFloat(max(0, entries.count - 1)) + 2)
+    static func image(_ entries: [MenuBarEntry], dark: Bool, layout: MenuBarLayout = MenuBarLayout()) -> NSImage {
+        let widths = entries.map { width($0, layout) }
+        let spacing = layout.itemSpacing
+        let total = max(1, widths.reduce(0, +) + spacing * CGFloat(max(0, entries.count - 1)))
         let image = NSImage(size: NSSize(width: ceil(total), height: height), flipped: false) { _ in
-            var x: CGFloat = 1
+            var x: CGFloat = 0
             for (entry, w) in zip(entries, widths) {
-                draw(entry, at: x, dark: dark)
+                draw(entry, at: x, dark: dark, layout: layout)
                 x += w + spacing
             }
             return true
@@ -123,55 +144,61 @@ enum MenuBarRenderer {
         ceil((text as NSString).size(withAttributes: [.font: font]).width)
     }
 
-    private static var labelColumn: CGFloat { ceil(labelFont.capHeight) + 2 }
+    /// Larghezza della colonna della sigla: la lettera più larga.
+    private static func labelColumn(_ label: String) -> CGFloat {
+        let font = labelFont(letters: label.count)
+        return label.map { textWidth(String($0), font) }.max() ?? 0
+    }
 
-    private static func width(_ entry: MenuBarEntry) -> CGFloat {
+    private static func width(_ entry: MenuBarEntry, _ layout: MenuBarLayout) -> CGFloat {
+        let lead = labelColumn(entry.label) + layout.labelGap
         switch entry.content {
         case let .gauge(number, unit, template, _, bars):
             let numberWidth = max(textWidth(template, valueFont), textWidth(number, valueFont))
-            let unitWidth = unit.isEmpty ? 0 : textWidth(unit, unitFont) + 0.5
-            let graph: CGFloat = bars.isEmpty ? 0 : CGFloat(barCount) * 1.5 + 2
-            return labelColumn + 2 + graph + numberWidth + unitWidth
+            let unitWidth = unit.isEmpty ? 0 : textWidth(unit, unitFont)
+            let graph: CGFloat = bars.isEmpty ? 0 : CGFloat(barCount) * 1.5 + 1.5
+            return lead + graph + numberWidth + unitWidth
         case let .network(up, down, _, _):
             let numbers = max(textWidth("999K", networkFont), textWidth(up, networkFont), textWidth(down, networkFont))
-            return labelColumn + 2 + textWidth("↓", networkFont) + 1.5 + numbers
+            return lead + textWidth("↓", networkFont) + 1 + numbers
         }
     }
 
-    private static func draw(_ entry: MenuBarEntry, at x: CGFloat, dark: Bool) {
+    private static func draw(_ entry: MenuBarEntry, at x: CGFloat, dark: Bool, layout: MenuBarLayout) {
         let labelColor = dark ? NSColor(white: 1, alpha: 0.72) : NSColor(white: 0, alpha: 0.6)
-        drawVerticalLabel(entry.label, centerX: x + labelColumn / 2, color: labelColor)
-        var cursor = x + labelColumn + 2
+        let column = labelColumn(entry.label)
+        drawStackedLabel(entry.label, centerX: x + column / 2, color: labelColor)
+        var cursor = x + column + layout.labelGap
 
         switch entry.content {
         case let .gauge(number, unit, template, severity, bars):
             if !bars.isEmpty {
                 let start = cursor + CGFloat(barCount - bars.count) * 1.5
                 for (i, bar) in bars.enumerated() {
-                    let h = max(1, CGFloat(bar.height) * 14)
+                    let h = max(1, CGFloat(bar.height) * 15)
                     scaleColor(bar.severity, dark: dark).withAlphaComponent(0.9).setFill()
-                    NSBezierPath(roundedRect: NSRect(x: start + CGFloat(i) * 1.5, y: 4, width: 1, height: h),
+                    NSBezierPath(roundedRect: NSRect(x: start + CGFloat(i) * 1.5, y: 3.5, width: 1, height: h),
                                  xRadius: 0.5, yRadius: 0.5).fill()
                 }
-                cursor += CGFloat(barCount) * 1.5 + 2
+                cursor += CGFloat(barCount) * 1.5 + 1.5
             }
             let color = scaleColor(severity, dark: dark)
             let numberWidth = max(textWidth(template, valueFont), textWidth(number, valueFont))
-            let baseline = height / 2 - valueFont.capHeight / 2
+            let baseline = (height - valueFont.capHeight) / 2
             drawText(number, font: valueFont, color: color,
                      x: cursor + numberWidth - textWidth(number, valueFont), baseline: baseline)
             if !unit.isEmpty {
-                drawText(unit, font: unitFont, color: color.withAlphaComponent(0.8), x: cursor + numberWidth + 0.5, baseline: baseline)
+                drawText(unit, font: unitFont, color: color.withAlphaComponent(0.8), x: cursor + numberWidth, baseline: baseline)
             }
 
         case let .network(up, down, upActive, downActive):
-            let arrowWidth = textWidth("↓", networkFont) + 1.5
+            let arrowWidth = textWidth("↓", networkFont) + 1
             let numbers = max(textWidth("999K", networkFont), textWidth(up, networkFont), textWidth(down, networkFont))
             let right = cursor + arrowWidth + numbers
             let half = networkFont.capHeight / 2
             let rows: [(String, String, Bool, NSColor, CGFloat)] = [
-                ("↑", up, upActive, uploadColor(dark: dark), height * 0.74 - half),
-                ("↓", down, downActive, downloadColor(dark: dark), height * 0.26 - half),
+                ("↑", up, upActive, uploadColor(dark: dark), height * 0.75 - half),
+                ("↓", down, downActive, downloadColor(dark: dark), height * 0.25 - half),
             ]
             for (arrow, value, active, tint, baseline) in rows {
                 let color = active ? tint : labelColor.withAlphaComponent(dark ? 0.5 : 0.45)
@@ -187,17 +214,21 @@ enum MenuBarRenderer {
                                 withAttributes: [.font: font, .foregroundColor: color])
     }
 
-    /// La sigla girata di 90°: si legge dal basso verso l'alto, come sul dorso di un libro.
-    private static func drawVerticalLabel(_ text: String, centerX: CGFloat, color: NSColor) {
-        guard let cg = NSGraphicsContext.current?.cgContext else { return }
-        let attributes: [NSAttributedString.Key: Any] = [.font: labelFont, .foregroundColor: color, .kern: 0.4]
-        let size = (text as NSString).size(withAttributes: attributes)
-        cg.saveGState()
-        cg.translateBy(x: centerX, y: height / 2)
-        cg.rotate(by: .pi / 2)
-        (text as NSString).draw(at: NSPoint(x: -size.width / 2, y: -labelFont.capHeight / 2 + labelFont.descender),
-                                withAttributes: attributes)
-        cg.restoreGState()
+    /// La sigla in colonna, una lettera sotto l'altra, centrata in altezza: C, P, U dall'alto in basso.
+    private static func drawStackedLabel(_ text: String, centerX: CGFloat, color: NSColor) {
+        let letters = Array(text)
+        guard !letters.isEmpty else { return }
+        let font = labelFont(letters: letters.count)
+        let cap = font.capHeight
+        // passo tra le lettere: il più ampio che sta nei 21 punti utili, mai più di 1,5 volte l'altezza della lettera
+        let pitch = letters.count > 1 ? min(cap * 1.5, (height - 1 - cap) / CGFloat(letters.count - 1)) : 0
+        let block = cap + pitch * CGFloat(letters.count - 1)
+        var baseline = (height + block) / 2 - cap          // la prima lettera in alto
+        for letter in letters {
+            let s = String(letter)
+            drawText(s, font: font, color: color, x: centerX - textWidth(s, font) / 2, baseline: baseline)
+            baseline -= pitch
+        }
     }
 
     // MARK: - Colori

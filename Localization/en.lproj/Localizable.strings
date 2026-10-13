@@ -3,6 +3,8 @@
 "%@ di %@" = "%@ of %@";
 "%@ di memoria" = "%@ of memory";
 "%@ liberi" = "%@ free";
+"%@ pt" = "%@ pt";
+"%@ punti" = "%@ points";
 "%@ usa il %d%% della CPU da %@" = "%@ has been using %d%% CPU for %@";
 "%@ usa il %d%% della CPU da %d min" = "%@ has been using %d%% CPU for %d min";
 "%@ usa il %d%% della CPU" = "%@ is using %d%% CPU";
@@ -82,7 +84,7 @@
 "Grafici" = "Graphs";
 "Il chip è a %@ da %@" = "The chip has been at %@ for %@";
 "Il chip è molto caldo: %@" = "The chip is very hot: %@";
-"Il colore dei valori va dal verde al rosso con il carico; upload e download hanno colori propri. La sigla accanto dice cosa stai guardando." = "Values go from green to red as the load rises; upload and download have colors of their own. The small vertical label tells you what you're looking at.";
+"Il colore dei valori va dal verde al rosso con il carico; upload e download hanno colori propri. La sigla accanto, una lettera sotto l'altra, dice cosa stai guardando. Con gli spazi a zero la barra è la più stretta possibile." = "Values go from green to red as the load rises; upload and download have colors of their own. The small label beside each value, one letter under the other, tells you what you're looking at. With both spacings at zero the menu bar item is as narrow as it gets.";
 "Il disco lavora molto (%@)" = "The disk is very busy (%@)";
 "Il report dice versione, Mac, quali letture funzionano, le tue scelte e gli ultimi avvisi. Niente nomi di app, file o indirizzi." = "The report lists the version, your Mac, which readings work, your settings and the latest alerts. No app names, files or addresses.";
 "Il Terminale non ha eseguito il comando: copialo e incollalo tu. (%@)" = "Terminal didn't run the command: copy it and paste it yourself. (%@)";
@@ -163,6 +165,8 @@
 "Sistema" = "System";
 "Sopra %d°" = "Above %d°";
 "Sopra il %d%%" = "Above %d%%";
+"Spazio tra le voci" = "Space between items";
+"Spazio tra sigla e valore" = "Space between label and value";
 "Sposta %@ a destra" = "Move %@ right";
 "Sposta %@ a sinistra" = "Move %@ left";
 "SSD" = "SSD";
