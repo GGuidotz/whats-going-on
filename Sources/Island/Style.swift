@@ -4,12 +4,28 @@
 // il sistema. Prima di macOS 26 il vetro diventa un materiale sottile. Riduci trasparenza e Aumenta contrasto li
 // gestisce il sistema.
 
+import AppKit
 import SwiftUI
 
 enum Palette {
-    /// La scala del carico: verde, giallo, arancio, rosso (Sources/Core/Severity.swift).
+    /// La scala del carico (Sources/Core/ColorScale.swift: rosso-verde o tre colori a scelta), con i toni giusti per
+    /// l'aspetto chiaro e per quello scuro.
     static func load(_ severity: Double) -> Color {
-        Color(hue: Severity.hue(severity), saturation: 0.8, brightness: 0.84)
+        let scale = ColorScale.current
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let c = scale.rgb(severity, dark: dark)
+            return NSColor(srgbRed: c.r, green: c.g, blue: c.b, alpha: 1)
+        })
+    }
+
+    /// Una sfumatura con tutta la scala, da calmo a pieno: per l'anteprima nelle impostazioni.
+    static func scaleGradient(_ scale: ColorScale, dark: Bool) -> LinearGradient {
+        let colors = stride(from: 0.0, through: 1.0, by: 0.125).map { t -> Color in
+            let c = scale.rgb(t, dark: dark)
+            return Color(.sRGB, red: c.r, green: c.g, blue: c.b)
+        }
+        return LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
     }
 
     /// Rete: due colori fuori dalla scala del carico, così download e upload non sembrano allarmi.
@@ -54,11 +70,49 @@ extension View {
         }
     }
 
-    /// Una scheda del contenuto: riempimento standard (non vetro), angoli ampi.
+    /// Una scheda del contenuto: non è vetro (il vetro è dei controlli), ma ci somiglia: un velo chiaro su cui passa il
+    /// vetro del pannello e un filo di luce sul bordo alto. Tutto statico: niente sfocature in più, niente animazioni.
     func contentCard(padding: CGFloat = 12, radius: CGFloat = 14) -> some View {
         self.padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .modifier(ContentCardBackground(radius: radius))
+    }
+}
+
+private struct ContentCardBackground: ViewModifier {
+    var radius: CGFloat
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let dark = scheme == .dark
+        let strong = contrast == .increased
+        content
+            .background(dark ? Color.white.opacity(strong ? 0.12 : 0.07) : Color.white.opacity(strong ? 0.8 : 0.5), in: shape)
+            .overlay {
+                shape.strokeBorder(
+                    LinearGradient(colors: [Color.white.opacity(dark ? 0.22 : 0.9), Color.white.opacity(dark ? 0.04 : 0.3)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 0.75)
+            }
+            .overlay {
+                if strong { shape.strokeBorder(Color.primary.opacity(0.25), lineWidth: 1) }
+            }
+    }
+}
+
+extension View {
+    /// Su macOS 26 la barra in basso diventa una barra di vetro con l'effetto bordo: il contenuto ci scorre sotto e
+    /// sfuma. Prima di macOS 26, un normale riquadro in fondo.
+    @ViewBuilder
+    func floatingBottomBar<Bar: View>(@ViewBuilder _ bar: () -> Bar) -> some View {
+        if #available(macOS 26.0, *) {
+            self.safeAreaBar(edge: .bottom, spacing: 0, content: bar)
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+        } else {
+            self.safeAreaInset(edge: .bottom, spacing: 0) { bar().background(.bar) }
+        }
     }
 }
 

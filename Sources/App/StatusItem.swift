@@ -16,6 +16,16 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     /// Un clic sulla voce mentre il pannello è aperto lo chiude (popover transitorio) prima che arrivi il clic: senza
     /// questo, il pannello si chiuderebbe e si riaprirebbe subito.
     private var lastClose = Date.distantPast
+    /// Ciò che è disegnato adesso: se la lettura nuova dà la stessa immagine, non si ridisegna nulla (meno CPU).
+    private var drawn: Drawn?
+
+    private struct Drawn: Equatable {
+        var entries: [MenuBarEntry]
+        var dark: Bool
+        var layout: MenuBarLayout
+        var scale: ColorScale
+        var tip: String
+    }
 
     init(model: AppModel) {
         self.model = model
@@ -35,9 +45,6 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
-        let host = NSHostingController(rootView: PanelView(model: model, close: { [weak self] in self?.closePanel() }))
-        host.sizingOptions = .preferredContentSize
-        popover.contentViewController = host
 
         // Ridisegna a ogni lettura e quando cambiano le scelte (dopo il cambio: receive(on:) aspetta il giro dopo).
         model.monitor.$snapshot.receive(on: RunLoop.main)
@@ -58,6 +65,10 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         let prefs = model.prefs, monitor = model.monitor
         let entries = MenuBarRenderer.entries(prefs.visibleModules, snapshot: monitor.snapshot, history: monitor.history,
                                               graphs: prefs.style == .graphs)
+        let state = Drawn(entries: entries, dark: isDark, layout: prefs.menuBarLayout, scale: prefs.colorScale,
+                          tip: model.monitor.summary.title)
+        guard state != drawn else { return }
+        drawn = state
         if entries.isEmpty {
             let symbol = NSImage(systemSymbolName: "waveform.path.ecg", accessibilityDescription: "What's Going On")
             symbol?.isTemplate = true
@@ -65,9 +76,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             button.toolTip = "What's Going On"
             button.setAccessibilityLabel("What's Going On")
         } else {
-            button.image = MenuBarRenderer.image(entries, dark: isDark, layout: prefs.menuBarLayout)
+            button.image = MenuBarRenderer.image(entries, dark: state.dark, layout: state.layout, scale: state.scale)
             let spoken = MenuBarRenderer.spokenLabel(entries)
-            button.toolTip = model.monitor.summary.title + "\n" + spoken
+            button.toolTip = state.tip + "\n" + spoken
             button.setAccessibilityLabel("What's Going On: " + spoken)
         }
     }
@@ -87,6 +98,10 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
     func showPanel() {
         guard let button = item.button, !popover.isShown else { return }
+        // Il contenuto nasce all'apertura e se ne va alla chiusura: a pannello chiuso nessuna vista lavora.
+        let host = NSHostingController(rootView: PanelView(model: model, close: { [weak self] in self?.closePanel() }))
+        host.sizingOptions = .preferredContentSize
+        popover.contentViewController = host
         NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
@@ -127,6 +142,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     }
 
     nonisolated func popoverDidClose(_ notification: Notification) {
-        MainActor.assumeIsolated { model.monitor.isPanelOpen = false }
+        MainActor.assumeIsolated {
+            model.monitor.isPanelOpen = false
+            popover.contentViewController = nil
+        }
     }
 }

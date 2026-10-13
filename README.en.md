@@ -24,7 +24,8 @@ project, not affiliated with Cocaine. Inspired by [Stats](https://mac-stats.com)
 | Battery and power | level, time left, health, cycles, watts; whole-Mac power where macOS exposes it |
 
 By default the menu bar shows CPU, RAM and NET. In Settings › Menu Bar you pick readings, order and style (numbers, or
-numbers with a tiny bar graph), with a preview on light and dark menu bars. Right-click the item for settings, what's
+numbers with a tiny bar graph), spacing and colors (a red-to-green scale, or three colors of your choice), with a preview
+on light and dark menu bars. Right-click the item for settings, what's
 new, feedback and quit.
 
 On macOS 26 and later the panel, tabs and buttons use Liquid Glass, and the app icon is a layered Liquid Glass icon

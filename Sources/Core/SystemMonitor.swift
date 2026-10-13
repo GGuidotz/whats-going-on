@@ -1,5 +1,7 @@
 // Il campionatore: un solo timer su una coda in background legge tutto, poi pubblica l'istantanea sul thread
 // principale. Più veloce a pannello aperto (1 s), al passo scelto a pannello chiuso (2 s di predefinito).
+// Leggerezza (obiettivo: sotto l'1% di CPU): a pannello chiuso l'elenco delle app, la lettura più cara, si fa una volta
+// su tre e i sensori una su due; la barra si ridisegna solo se l'immagine cambia (StatusItem).
 // Niente SwiftUI qui: lo stesso motore può servire la pagina dell'isola di Cocaine.
 
 import Combine
@@ -18,8 +20,10 @@ final class Sampler: @unchecked Sendable {
     private var tick = 0
     private var lastBattery: BatterySample?
     private var lastSensors: SensorsSample?
+    private var lastProcesses: [ProcessUsage] = []
 
-    func sample(includeGPU: Bool) -> Snapshot {
+    /// `detailed`: il pannello è aperto e mostra le app, quindi l'elenco va letto a ogni giro.
+    func sample(includeGPU: Bool, detailed: Bool) -> Snapshot {
         tick += 1
         var s = Snapshot(date: Date())
         s.cpu = cpu.read()
@@ -31,7 +35,9 @@ final class Sampler: @unchecked Sendable {
         if tick % 2 == 1 { lastSensors = sensors.read() }      // i sensori costano un po' di più
         s.sensors = lastSensors
         if includeGPU { s.gpu = gpu.read() }
-        s.processes = processes.read()
+        // a pannello chiuso le app servono solo alla frase di riepilogo: basta una lettura ogni tre
+        if detailed || tick % 3 == 1 { lastProcesses = processes.read() }
+        s.processes = lastProcesses
         return s
     }
 }
@@ -65,9 +71,10 @@ final class SystemMonitor: ObservableObject {
         t.schedule(deadline: .now(), repeating: period, leeway: .milliseconds(Int(period * 100)))
         let sampler = sampler
         let gpu = includeGPU
+        let detailed = isPanelOpen
         // Il monitor vive quanto l'app: il riferimento forte non perde nulla.
         t.setEventHandler {
-            let s = sampler.sample(includeGPU: gpu)
+            let s = sampler.sample(includeGPU: gpu, detailed: detailed)
             Task { @MainActor in self.apply(s) }
         }
         t.resume()

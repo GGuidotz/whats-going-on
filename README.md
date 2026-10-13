@@ -24,7 +24,8 @@ isola. Progetto indipendente, non affiliato a Cocaine. Ispirato a [Stats](https:
 | Batteria e consumo | livello, tempo rimasto, salute, cicli, watt; consumo del Mac dove macOS lo espone |
 
 Nella barra dei menu, di predefinito: CPU, RAM e RETE. In Impostazioni › Barra dei menu scegli moduli, ordine e stile
-(numeri, o numeri con un piccolo grafico a barre), con l'anteprima su barra chiara e scura. Clic destro sulla voce:
+(numeri, o numeri con un piccolo grafico a barre), gli spazi e i colori (scala rosso-verde o tre colori a scelta), con
+l'anteprima su barra chiara e scura. Clic destro sulla voce:
 impostazioni, novità, feedback, esci.
 
 Su macOS 26 e successivi pannello, schede e pulsanti sono di Liquid Glass, e l'icona è un'icona Liquid Glass a strati

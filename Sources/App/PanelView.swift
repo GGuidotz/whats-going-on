@@ -1,12 +1,17 @@
 // Il pannello che si apre dalla barra dei menu. Le HIG chiedono un menu, salvo funzioni troppo complesse
 // (the-menu-bar.md › Menu bar extras): grafici dal vivo e dettagli che si aprono lo sono, quindi è un pannello.
 // È un popover: su macOS 26 il vetro lo mette il sistema. In fondo, i controlli che galleggiano: pulsanti di vetro
-// (Impostazioni ⌘, ed Esci ⌘Q) e, quando c'è, la nuova versione.
+// (Impostazioni ⌘, ed Esci ⌘Q) e, quando c'è, la nuova versione, in una barra sotto cui il contenuto scorre e sfuma.
 
 import AppKit
 import SwiftUI
 
 private struct HeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private struct FooterHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
@@ -17,6 +22,7 @@ struct PanelView: View {
     @ObservedObject var updater: Updater
     var close: () -> Void
     @State private var contentHeight: CGFloat = 420
+    @State private var footerHeight: CGFloat = 50
 
     init(model: AppModel, close: @escaping () -> Void) {
         self.model = model
@@ -28,21 +34,20 @@ struct PanelView: View {
     private var maxHeight: CGFloat { max(320, (NSScreen.main?.visibleFrame.height ?? 800) - 140) }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                SystemPanel(monitor: model.monitor, advanced: prefs.advanced)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 14)
-                    .padding(.bottom, 8)
-                    .background(GeometryReader { Color.clear.preference(key: HeightKey.self, value: $0.size.height) })
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(height: min(contentHeight, maxHeight))
-            .onPreferenceChange(HeightKey.self) { contentHeight = $0 }
-
-            footer
+        ScrollView {
+            SystemPanel(monitor: model.monitor, advanced: prefs.advanced)
+                .padding(.horizontal, 12)
+                .padding(.top, 14)
+                .padding(.bottom, 8)
+                .background(GeometryReader { Color.clear.preference(key: HeightKey.self, value: $0.size.height) })
         }
-        .frame(width: 360)
+        .scrollBounceBehavior(.basedOnSize)
+        .floatingBottomBar {
+            footer.background(GeometryReader { Color.clear.preference(key: FooterHeightKey.self, value: $0.size.height) })
+        }
+        .frame(width: 360, height: min(contentHeight + footerHeight, maxHeight))
+        .onPreferenceChange(HeightKey.self) { contentHeight = $0 }
+        .onPreferenceChange(FooterHeightKey.self) { if $0 > 0 { footerHeight = $0 } }
     }
 
     private var footer: some View {

@@ -26,6 +26,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)   // il fondo è il materiale della finestra (SettingsWindow)
         .safeAreaInset(edge: .top, spacing: 0) {
             SettingsTabBar(selection: $model.settingsTab)
                 .padding(.top, 2)
@@ -105,8 +106,10 @@ private struct MenuBarSettings: View {
             } header: {
                 Text(L("Anteprima"))
             } footer: {
-                Footnote(L("Il colore dei valori va dal verde al rosso con il carico; upload e download hanno colori propri. La sigla accanto, una lettera sotto l'altra, dice cosa stai guardando. Con gli spazi a zero la barra è la più stretta possibile."))
+                Footnote(L("La sigla accanto a ogni valore, una lettera sotto l'altra, dice cosa stai guardando. Con gli spazi a zero la barra è la più stretta possibile."))
             }
+
+            ColorScaleSection(prefs: prefs)
 
             Section {
                 ForEach(prefs.moduleOrder) { module in
@@ -159,6 +162,60 @@ private struct SpacingSlider: View {
     }
 }
 
+/// La scala dei colori del carico: rosso-verde, oppure tre colori scelti (di partenza verde, bianco, rosso).
+private struct ColorScaleSection: View {
+    @ObservedObject var prefs: Preferences
+
+    var body: some View {
+        Section {
+            Picker(L("Scala"), selection: $prefs.colorScale.kind) {
+                ForEach(ColorScale.Kind.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            if prefs.colorScale.kind == .threeColors {
+                stop(L("Carico basso"), \.low)
+                stop(L("Carico medio"), \.mid)
+                stop(L("Carico alto"), \.high)
+                Button(L("Torna a verde, bianco e rosso")) {
+                    prefs.colorScale = ColorScale(kind: .threeColors)
+                }
+                .disabled(prefs.colorScale.low == .green && prefs.colorScale.mid == .white && prefs.colorScale.high == .red)
+            }
+            HStack(spacing: 10) {
+                strip(dark: false)
+                strip(dark: true)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L("Anteprima della scala, da carico basso a carico alto"))
+        } header: {
+            Text(L("Colori"))
+        } footer: {
+            Footnote(L("Il colore segue il carico, il numero resta scritto: il colore non è mai l'unico segnale. Upload e download hanno colori propri. Sulla barra chiara i colori troppo chiari si scuriscono un poco, su quella scura i troppo scuri si schiariscono, per restare leggibili."))
+        }
+    }
+
+    private func stop(_ title: String, _ key: WritableKeyPath<ColorScale, RGB>) -> some View {
+        ColorPicker(title, selection: Binding(
+            get: { let c = prefs.colorScale[keyPath: key]; return Color(.sRGB, red: c.r, green: c.g, blue: c.b) },
+            set: { color in
+                guard let c = NSColor(color).usingColorSpace(.sRGB) else { return }
+                prefs.colorScale[keyPath: key] = RGB(r: Double(c.redComponent), g: Double(c.greenComponent),
+                                                     b: Double(c.blueComponent))
+            }
+        ), supportsOpacity: false)
+    }
+
+    private func strip(dark: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
+            .fill(Palette.scaleGradient(prefs.colorScale, dark: dark))
+            .frame(height: 10)
+            .padding(6)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(dark ? Color(white: 0.13) : Color(white: 0.94)))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.primary.opacity(0.1)))
+    }
+}
+
 /// La barra com'è adesso, su una barra chiara e su una scura.
 private struct MenuBarPreview: View {
     @ObservedObject var monitor: SystemMonitor
@@ -179,7 +236,8 @@ private struct MenuBarPreview: View {
             if entries.isEmpty {
                 Image(systemName: "waveform.path.ecg").foregroundStyle(dark ? Color.white : Color.black)
             } else {
-                Image(nsImage: MenuBarRenderer.image(entries, dark: dark, layout: prefs.menuBarLayout))
+                Image(nsImage: MenuBarRenderer.image(entries, dark: dark, layout: prefs.menuBarLayout,
+                                                     scale: prefs.colorScale))
             }
         }
         .padding(.horizontal, 12)

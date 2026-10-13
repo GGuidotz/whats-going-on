@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Disegna l'icona di What's Going On. Concetto: un MacBook Air visto di fronte (schermo con la tacca, base sottile e
-più larga con l'incavo per aprirlo), di vetro chiaro, e sullo schermo il tracciato di un monitoraggio che sale dal verde
-al rosso. Fondo scuro che va dal verde notte in alto al rosso vino in basso.
+"""Disegna l'icona di What's Going On. Concetto: un MacBook Air color argento visto di fronte (schermo con la tacca, base
+sottile e più larga con l'incavo per aprirlo), e sullo schermo nero il tracciato di un monitoraggio che sale dal verde
+al rosso. Fondo chiaro, bianco che sfuma appena nel grigio perla, come vetro smerigliato.
 
 Due uscite, con la stessa geometria:
     python3 -I tools/render-icon.py                 Resources/Icon/AppIcon-1024.png (icona classica, vetro simulato)
@@ -19,8 +19,11 @@ S = 3                      # sovracampionamento
 N = 1024 * S
 
 # Colori (sRGB 0…255). Il fondo è lo stesso "fill" di icon.json.
-BG_TOP = (12, 80, 54)      # verde notte
-BG_BOTTOM = (92, 14, 30)   # rosso vino
+BG_TOP = (255, 255, 255)   # bianco
+BG_BOTTOM = (222, 227, 234)  # grigio perla, appena freddo
+SILVER_TOP = (238, 239, 242)
+SILVER_BOTTOM = (176, 181, 189)
+SILVER_EDGE = (128, 134, 143)
 GREEN = (52, 209, 122)
 YELLOW = (247, 199, 68)
 RED = (240, 69, 63)
@@ -125,10 +128,20 @@ def background():
     t = np.linspace(0, 1, N)[:, None, None]
     top, bottom = np.array(BG_TOP, float), np.array(BG_BOTTOM, float)
     rgb = (top + (bottom - top) * t) * np.ones((1, N, 1))
-    # un bagliore chiaro in alto, dove la luce colpisce il vetro
+    # un bagliore in alto, dove la luce colpisce il vetro
     y, x = np.mgrid[0:N, 0:N] / (N - 1)
     glow = np.clip(1 - np.sqrt((x - 0.5) ** 2 + (y - 0.05) ** 2) / 0.7, 0, 1)[..., None] ** 2
-    rgb = rgb + (np.array([90, 160, 130], float) - rgb) * glow * 0.25
+    rgb = rgb + (np.array([255, 255, 255], float) - rgb) * glow * 0.6
+    a = np.full((N, N, 1), 255.0)
+    return Image.fromarray(np.concatenate([rgb, a], 2).astype(np.uint8), "RGBA")
+
+
+def silver():
+    """Alluminio argento: chiaro in alto, più scuro in basso, sull'altezza del portatile."""
+    y0, y1 = DISPLAY[1], BASE[3]
+    t = np.clip((np.arange(N) / S - y0) / (y1 - y0), 0, 1)[:, None, None]
+    top, bottom = np.array(SILVER_TOP, float), np.array(SILVER_BOTTOM, float)
+    rgb = (top + (bottom - top) * t ** 1.4) * np.ones((1, N, 1))
     a = np.full((N, N, 1), 255.0)
     return Image.fromarray(np.concatenate([rgb, a], 2).astype(np.uint8), "RGBA")
 
@@ -139,30 +152,28 @@ def with_alpha(img, mask, opacity=1.0):
     return out
 
 
-def glass(base, mask, fill_color=(255, 255, 255), fill=0.8, rim=0.9, blur=24):
-    """Vetro simulato per l'icona classica: fondo sfocato e schiarito, bordo luminoso, riflesso in alto."""
-    refr = base.filter(ImageFilter.GaussianBlur(sc(blur)))
-    refr = Image.blend(refr, solid(fill_color), fill)
-    out = Image.composite(refr, base, mask)
-    k = 7 * S + (1 if (7 * S) % 2 == 0 else 0)
-    edge = ImageChops.subtract(mask, mask.filter(ImageFilter.MinFilter(k))).filter(ImageFilter.GaussianBlur(sc(1.5)))
-    out = Image.alpha_composite(out, with_alpha(solid((255, 255, 255)), edge, rim))
-    shifted = mask.transform(mask.size, Image.AFFINE, (1, 0, 0, 0, 1, sc(10)))
-    spec = ImageChops.subtract(mask, shifted).filter(ImageFilter.GaussianBlur(sc(4)))
-    return Image.alpha_composite(out, with_alpha(solid((255, 255, 255)), spec, 0.6))
-
-
 def shadow(base, mask, offset=14, blur=26, opacity=0.45):
     sh = mask.transform(mask.size, Image.AFFINE, (1, 0, 0, 0, 1, -sc(offset))).filter(ImageFilter.GaussianBlur(sc(blur)))
-    return Image.alpha_composite(base, with_alpha(solid((4, 6, 8)), sh, opacity))
+    return Image.alpha_composite(base, with_alpha(solid((40, 46, 56)), sh, opacity))
+
+
+def metal(base, mask):
+    """Il portatile d'argento per l'icona classica: alluminio, un filo scuro sul bordo e un riflesso in alto."""
+    out = Image.alpha_composite(base, with_alpha(silver(), mask))
+    k = 5 * S + (1 if (5 * S) % 2 == 0 else 0)
+    edge = ImageChops.subtract(mask, mask.filter(ImageFilter.MinFilter(k))).filter(ImageFilter.GaussianBlur(sc(1)))
+    out = Image.alpha_composite(out, with_alpha(solid(SILVER_EDGE), edge, 0.55))
+    shifted = mask.transform(mask.size, Image.AFFINE, (1, 0, 0, 0, 1, sc(8)))
+    spec = ImageChops.subtract(mask, shifted).filter(ImageFilter.GaussianBlur(sc(3)))
+    return Image.alpha_composite(out, with_alpha(solid((255, 255, 255)), spec, 0.9))
 
 
 def render_flat():
     img = background()
     laptop, screen, graph, area = mask_laptop(), mask_screen(), mask_graph(), mask_area()
-    img = shadow(img, ImageChops.lighter(laptop, screen))
-    img = Image.alpha_composite(img, with_alpha(solid(SCREEN), screen, 0.72))
-    img = glass(img, laptop, fill=0.82)
+    img = shadow(img, ImageChops.lighter(laptop, screen), opacity=0.32)
+    img = Image.alpha_composite(img, with_alpha(solid(SCREEN), screen, 0.94))
+    img = metal(img, laptop)
     colors = scale_gradient()
     img = Image.alpha_composite(img, with_alpha(colors, area, 0.5))
     img = shadow(img, graph, offset=6, blur=10, opacity=0.5)
@@ -192,7 +203,7 @@ def render_layers(outdir):
     os.makedirs(outdir, exist_ok=True)
     colors = scale_gradient()
     layers = {
-        "laptop.png": with_alpha(solid((255, 255, 255)), mask_laptop()),
+        "laptop.png": with_alpha(silver(), mask_laptop()),
         "screen.png": with_alpha(solid(SCREEN), mask_screen()),
         "graph.png": with_alpha(colors, mask_graph()),
         "graph-area.png": with_alpha(colors, mask_area()),

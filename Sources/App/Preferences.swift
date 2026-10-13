@@ -64,6 +64,10 @@ final class Preferences: ObservableObject {
     /// Punti tra una voce e l'altra della barra, e tra la sigla e il suo valore.
     @Published var itemSpacing: Double { didSet { defaults.set(itemSpacing, forKey: "itemSpacing") } }
     @Published var labelGap: Double { didSet { defaults.set(labelGap, forKey: "labelGap") } }
+    /// I colori del carico: rosso-verde o tre colori a scelta. Vale per la barra e per il pannello.
+    @Published var colorScale: ColorScale {
+        didSet { ColorScale.current = colorScale; save(colorScale, "colorScale") }
+    }
     @Published var interval: Double { didSet { defaults.set(interval, forKey: "interval") } }
     @Published var advanced: Bool { didSet { defaults.set(advanced, forKey: "advanced") } }
     @Published var language: AppLanguage {
@@ -86,6 +90,7 @@ final class Preferences: ObservableObject {
         style = load("style", MenuBarStyle.values)
         itemSpacing = UserDefaults.standard.object(forKey: "itemSpacing") as? Double ?? 5
         labelGap = UserDefaults.standard.object(forKey: "labelGap") as? Double ?? 1
+        colorScale = load("colorScale", ColorScale())
         interval = UserDefaults.standard.object(forKey: "interval") as? Double ?? 2
         advanced = UserDefaults.standard.bool(forKey: "advanced")
         language = load("language", AppLanguage.system)
@@ -93,6 +98,7 @@ final class Preferences: ObservableObject {
         alertDestination = load("alertDestination", AlertDestination.cocaine)
         autoCheckUpdates = UserDefaults.standard.object(forKey: "autoCheckUpdates") as? Bool ?? true
         Localization.language = language
+        ColorScale.current = colorScale
     }
 
     var menuBarLayout: MenuBarLayout { MenuBarLayout(itemSpacing: itemSpacing, labelGap: labelGap) }

@@ -1,5 +1,7 @@
 // La finestra delle impostazioni: una finestra AppKit con dentro SwiftUI, perché senza il ciclo di vita di SwiftUI
 // la scena Settings non c'è. Barra del titolo trasparente: la barra delle schede di vetro galleggia sopra il contenuto.
+// Il fondo della finestra è un materiale traslucido (quello delle barre laterali): lascia passare i colori della
+// scrivania, resta leggibile, e con Riduci trasparenza diventa pieno da solo. Lo disegna il sistema, non costa CPU.
 
 import AppKit
 import SwiftUI
@@ -30,17 +32,29 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 }
 
 @MainActor
-final class SettingsWindowController {
+final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
 
     func show(model: AppModel) {
         if window == nil {
             let host = NSHostingController(rootView: SettingsView(model: model))
-            let w = NSWindow(contentViewController: host)
+            let effect = NSVisualEffectView()
+            effect.material = .sidebar
+            effect.blendingMode = .behindWindow
+            effect.state = .followsWindowActiveState
+            let container = NSViewController()
+            container.view = effect
+            container.addChild(host)
+            effect.frame = NSRect(origin: .zero, size: SettingsView.size)
+            host.view.frame = effect.bounds
+            host.view.autoresizingMask = [.width, .height]
+            effect.addSubview(host.view)
+            let w = NSWindow(contentViewController: container)
             w.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
             w.titlebarAppearsTransparent = true
             w.titleVisibility = .hidden
             w.isReleasedWhenClosed = false
+            w.delegate = self
             w.setContentSize(NSSize(width: SettingsView.size.width, height: SettingsView.size.height))
             w.center()
             window = w
@@ -48,6 +62,16 @@ final class SettingsWindowController {
         window?.title = L("Impostazioni di What's Going On")   // per Mission Control e VoiceOver, anche dopo un cambio di lingua
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Finestra chiusa: via anche le sue viste, che altrimenti continuerebbero a ridisegnare l'anteprima a ogni lettura.
+    nonisolated func windowWillClose(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                self?.window?.contentViewController = nil
+                self?.window = nil
+            }
+        }
     }
 }
 
