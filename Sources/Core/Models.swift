@@ -44,9 +44,6 @@ struct NetworkSample: Equatable {
 struct DiskSample: Equatable {
     var total: Int64
     var free: Int64
-    /// Byte al secondo, tutti i dischi.
-    var readRate: Double
-    var writeRate: Double
 
     var freeFraction: Double { total > 0 ? Double(free) / Double(total) : 1 }
 }
@@ -107,6 +104,8 @@ struct Snapshot: Equatable {
     var gpu: GPUSample?
     /// Le app più attive per CPU e per memoria (al massimo 12 + 12, senza doppioni).
     var processes: [ProcessUsage] = []
+    /// What's Going On stessa: quanto pesa adesso.
+    var ownUsage: ProcessUsage?
 
     var topByCPU: [ProcessUsage] { processes.sorted { $0.cpu > $1.cpu } }
     var topByMemory: [ProcessUsage] { processes.sorted { $0.memory > $1.memory } }

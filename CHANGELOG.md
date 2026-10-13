@@ -3,7 +3,23 @@
 Formato: `## <versione> · <data>`, poi `### Novità`, `### Miglioramenti`, `### Correzioni`, una riga `- ` per
 cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggiornamenti (Sources/App/Changelog.swift).
 
-## 0.4.0 · 2026-10-13
+## 0.4.1 · 2026-10-13
+
+Più leggera e più semplice, con una guida per cominciare.
+
+### Novità
+- Guida al primo avvio in quattro passi: cosa fa l'app, cosa vedere nella barra, dove arrivano gli avvisi (con il permesso per le notifiche chiesto lì), come si usa. Si rivede da Impostazioni › Generale.
+- Impostazioni › Generale mostra quanto pesa What's Going On adesso, CPU e memoria.
+- Impostazioni › Avvisi: ogni quanto leggere la temperatura a pannello chiuso (10 s, 30 s, 1 min, 2 min; di base 30 s).
+
+### Miglioramenti
+- A pannello chiuso l'app legge solo ciò che mostri nella barra e ciò che serve agli avvisi accesi: temperature solo dai sensori del chip e solo se servono, elenco delle app ogni 10 secondi, niente indirizzo IP.
+- Con un'app a schermo intero o la barra nascosta, la voce non si ridisegna. A schermi spenti o Mac bloccato, una lettura ogni 10 secondi; gli avvisi continuano.
+- Grafici e barre dei core disegnati in un colpo solo: il pannello aperto costa molto meno.
+- Lo storico in memoria si ferma a 60 valori per misura, quelli che i grafici mostrano.
+- Disco: al posto delle velocità di lettura e scrittura, una barra con lo spazio occupato. Nessuna lettura continua dei dischi.
+
+
 
 Prima versione pubblica.
 

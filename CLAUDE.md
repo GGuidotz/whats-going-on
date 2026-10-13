@@ -20,3 +20,5 @@ App macOS per la barra dei menu (Swift/SwiftUI, macOS 14+), companion di Cocaine
   actool in build.sh e controllata da `tools/icon-check`; `AppIcon-1024.png` è il ripiego classico.
 - Avvisi a Cocaine: `cocaine://alert` li mostra solo se sei via da 20 s o con "Anche al Mac" (`alertWhenPresent`),
   non in pausa e con `alertFlash`; le preferenze di Cocaine si leggono dal dominio `local.cocaine.toggle`.
+- Leggerezza (obiettivo sotto l'1% di CPU): a pannello chiuso si legge solo ciò che serve (SamplingNeeds in
+  `Sources/Core/SystemMonitor.swift`, impostato da AppModel). Niente letture nuove a ogni giro senza chiedersi chi le guarda.

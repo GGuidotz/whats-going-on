@@ -10,7 +10,8 @@ final class NetworkReader {
     private var sessionIn: UInt64 = 0
     private var sessionOut: UInt64 = 0
 
-    func read() -> NetworkSample? {
+    /// `withAddress`: legge anche l'indirizzo IP locale (solo il pannello lo mostra).
+    func read(withAddress: Bool) -> NetworkSample? {
         var head: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&head) == 0, let head else { return nil }
         defer { freeifaddrs(head) }
@@ -31,7 +32,7 @@ final class NetworkReader {
                 if let data = entry.pointee.ifa_data?.assumingMemoryBound(to: if_data.self).pointee {
                     counters[name] = (data.ifi_ibytes, data.ifi_obytes)
                 }
-            case AF_INET where ip == nil:
+            case AF_INET where withAddress && ip == nil:
                 var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
                 if getnameinfo(addr, socklen_t(addr.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
                     let text = String(cString: host)

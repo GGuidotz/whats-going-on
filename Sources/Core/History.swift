@@ -17,13 +17,13 @@ struct Series: Equatable {
 }
 
 enum Metric: String, CaseIterable, Codable, Identifiable {
-    case cpu, memory, download, upload, diskRead, diskWrite, temperature, gpu, power
+    case cpu, memory, download, upload, temperature, gpu, power
     var id: String { rawValue }
 }
 
 struct History: Equatable {
-    /// 5 minuti a un campione ogni secondo, 10 minuti ogni due secondi.
-    static let capacity = 300
+    /// Quanto mostrano i grafici del pannello: 60 campioni (un minuto a pannello aperto).
+    static let capacity = 60
     private(set) var series: [Metric: Series] = [:]
 
     subscript(metric: Metric) -> [Double] { series[metric]?.values ?? [] }
@@ -39,8 +39,6 @@ struct History: Equatable {
         add(.memory, s.memory?.usedFraction)
         add(.download, s.network?.download)
         add(.upload, s.network?.upload)
-        add(.diskRead, s.disk?.readRate)
-        add(.diskWrite, s.disk?.writeRate)
         add(.temperature, s.sensors?.chip)
         add(.gpu, s.gpu?.utilization)
         add(.power, s.sensors?.systemWatts ?? s.battery?.watts.map(abs))

@@ -169,13 +169,13 @@ struct SystemPanel: View {
         MetricRow(symbol: "internaldrive", title: L("Disco"),
                   value: d.map { L("%@ liberi", Format.diskBytes($0.free)) } ?? "–",
                   caption: d.map { L("di %@", Format.diskBytes($0.total)) },
-                  values: h.recent(.diskRead, 60), upperBound: nil, secondary: h.recent(.diskWrite, 60),
+                  values: [], upperBound: nil,
                   tint: Palette.load(d.map { Severity.remaining($0.freeFraction) } ?? 0),
+                  fill: d.map { 1 - $0.freeFraction },
                   trend: nil,
                   expanded: binding("disk")) {
             if let d {
-                DetailLine(label: L("Lettura"), value: Format.rate(d.readRate))
-                DetailLine(label: L("Scrittura"), value: Format.rate(d.writeRate))
+                DetailLine(label: L("Usato"), value: Format.diskBytes(d.total - d.free))
                 DetailLine(label: L("Libero"), value: Format.percent(d.freeFraction))
             }
         }

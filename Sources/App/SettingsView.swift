@@ -18,7 +18,7 @@ struct SettingsView: View {
     var body: some View {
         Group {
             switch model.settingsTab {
-            case .general: GeneralSettings(prefs: prefs)
+            case .general: GeneralSettings(model: model, prefs: prefs, monitor: model.monitor)
             case .menuBar: MenuBarSettings(prefs: prefs, monitor: model.monitor)
             case .alerts: AlertsSettings(prefs: prefs, delivery: model.delivery)
             case .updates: UpdatesSettings(updater: model.updater, prefs: prefs)
@@ -50,7 +50,9 @@ private struct Footnote: View {
 // MARK: - Generale
 
 private struct GeneralSettings: View {
+    var model: AppModel
     @ObservedObject var prefs: Preferences
+    @ObservedObject var monitor: SystemMonitor
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var loginError: String?
 
@@ -81,6 +83,18 @@ private struct GeneralSettings: View {
                 Toggle(L("Modalità avanzata"), isOn: $prefs.advanced)
             } footer: {
                 Footnote(L("Aggiunge la GPU, il carico di ogni core, tutti i sensori di temperatura e più app nei dettagli."))
+            }
+
+            Section {
+                LabeledContent(L("Consumo di What's Going On")) {
+                    Text(monitor.snapshot.ownUsage.map {
+                        L("%@ di CPU · %@", Format.corePercent($0.cpu), Format.bytes($0.memory))
+                    } ?? "–")
+                    .monospacedDigit()
+                }
+                Button(L("Rivedi la guida iniziale")) { model.showOnboarding() }
+            } footer: {
+                Footnote(L("L'obiettivo è restare sotto l'1% di CPU: a pannello chiuso l'app legge solo ciò che mostri nella barra e ciò che serve agli avvisi accesi. Con questa finestra aperta il valore è un po' più alto."))
             }
         }
     }
@@ -217,7 +231,7 @@ private struct ColorScaleSection: View {
 }
 
 /// La barra com'è adesso, su una barra chiara e su una scura.
-private struct MenuBarPreview: View {
+struct MenuBarPreview: View {
     @ObservedObject var monitor: SystemMonitor
     @ObservedObject var prefs: Preferences
 
@@ -292,8 +306,16 @@ private struct AlertsSettings: View {
                 ForEach(AlertKind.allCases) { kind in
                     AlertRuleRow(kind: kind, rule: Binding(get: { prefs.alerts[kind] }, set: { prefs.alerts[kind] = $0 }))
                 }
+                Picker(L("Leggi la temperatura ogni"), selection: $prefs.temperatureInterval) {
+                    Text(L("%d s", 10)).tag(10.0)
+                    Text(L("%d s", 30)).tag(30.0)
+                    Text(L("%d min", 1)).tag(60.0)
+                    Text(L("%d min", 2)).tag(120.0)
+                }
             } header: {
                 Text(L("Quando avvisare"))
+            } footer: {
+                Footnote(L("I sensori di temperatura sono la lettura più pesante: a pannello chiuso si leggono solo se la temperatura è nella barra o l'avviso Chip caldo è acceso, e solo ogni tanto. A pannello aperto si aggiornano ogni secondo."))
             }
 
             Section {

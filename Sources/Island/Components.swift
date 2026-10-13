@@ -14,6 +14,8 @@ struct MetricRow<Detail: View>: View {
     var secondary: [Double]? = nil
     var tint: Color = .accentColor
     var secondaryTint: Color? = nil
+    /// Al posto del grafico, una barra di riempimento (0…1): per ciò che cambia piano, come il disco.
+    var fill: Double? = nil
     var trend: String?
     @Binding var expanded: Bool
     @ViewBuilder var detail: () -> Detail
@@ -38,9 +40,15 @@ struct MetricRow<Detail: View>: View {
                         }
                     }
                     Spacer(minLength: 8)
-                    Sparkline(values: values, upperBound: upperBound, secondary: secondary, tint: tint,
-                              secondaryTint: secondaryTint)
-                        .frame(width: 112, height: 30)
+                    Group {
+                        if let fill {
+                            FillBar(fraction: fill, tint: tint)
+                        } else {
+                            Sparkline(values: values, upperBound: upperBound, secondary: secondary, tint: tint,
+                                      secondaryTint: secondaryTint)
+                        }
+                    }
+                    .frame(width: 112, height: 30)
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
@@ -95,17 +103,22 @@ struct CoreBars: View {
     var cores: [Double]
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 2) {
-            ForEach(Array(cores.enumerated()), id: \.offset) { _, v in
-                ZStack(alignment: .bottom) {
-                    RoundedRectangle(cornerRadius: 1.5).fill(.quaternary)
-                    RoundedRectangle(cornerRadius: 1.5).fill(Palette.load(Severity.load(v)))
-                        .frame(height: max(1.5, 28 * min(1, v)))
-                }
-                .frame(height: 28)
+        // Un solo Canvas per tutti i core (anche 20): una vista invece di quaranta forme.
+        Canvas { context, size in
+            guard !cores.isEmpty else { return }
+            let gap: CGFloat = 2
+            let width = (size.width - gap * CGFloat(cores.count - 1)) / CGFloat(cores.count)
+            for (i, v) in cores.enumerated() {
+                let x = CGFloat(i) * (width + gap)
+                context.fill(Path(roundedRect: CGRect(x: x, y: 0, width: width, height: size.height), cornerRadius: 1.5),
+                             with: .style(.quaternary))
+                let h = max(1.5, size.height * CGFloat(min(1, v)))
+                context.fill(Path(roundedRect: CGRect(x: x, y: size.height - h, width: width, height: h), cornerRadius: 1.5),
+                             with: .color(Palette.load(Severity.load(v))))
             }
         }
         .frame(maxWidth: .infinity)
+        .frame(height: 28)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L("Carico per core"))
         .accessibilityValue(cores.enumerated().map { L("core %d: %@", $0.offset + 1, Format.percent($0.element)) }

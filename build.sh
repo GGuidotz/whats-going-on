@@ -76,7 +76,7 @@ if [ "${WGO_ICON:-}" != classic ]; then
       cp "$BUILD/icon-out/Assets.car" "$APP/Contents/Resources/"
       plist_set CFBundleIconName "$ICON_NAME"
       ICON_TIER="liquid-glass"
-      if swiftc -O -swift-version 5 tools/icon-check/main.swift Sources/App/IconMetrics.swift -o "$BUILD/icon-check" \
+      if swiftc -O -swift-version 5 tools/icon-check/main.swift tools/icon-check/IconMetrics.swift -o "$BUILD/icon-check" \
            >>"$BUILD/actool.log" 2>&1; then
         ICON_CHECK=$("$BUILD/icon-check" "$APP" "$BUILD/icon-out" "$BUILD" 2>>"$BUILD/actool.log") && rc=0 || rc=$?
         if [ "$rc" -eq 1 ]; then

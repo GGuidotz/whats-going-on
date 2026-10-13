@@ -1,6 +1,6 @@
 // Controlla che l'icona dell'app si disegni davvero, come la disegnerà il Dock (IconServices), su una copia dell'app in
 // un percorso nuovo, così la cache delle icone non conta. Lo esegue build.sh:
-//   swiftc tools/icon-check/main.swift Sources/App/IconMetrics.swift -o build/icon-check
+//   swiftc tools/icon-check/main.swift tools/icon-check/IconMetrics.swift -o build/icon-check
 //   build/icon-check "build/What's Going On.app" build/icon-out build
 // Scrive build/icon-preview.png (e build/icon-actool.png dall'.icns generato da actool), stampa una riga di misure.
 // Uscita: 0 icona a posto, 1 icona vuota (build.sh passa alla classica), 2 controllo non riuscito.
