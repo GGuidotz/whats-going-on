@@ -106,14 +106,18 @@ enum DiagnosticsReport {
         row("Disk", yesNo(s.disk != nil))
         row("Battery", yesNo(s.battery != nil))
         row("Chip temperature", yesNo(s.sensors?.chip != nil))
-        row("Temperature sensors", "\(s.sensors?.all.count ?? 0)")
+        row("Temperature sensors listed", "\(s.sensors?.all.count ?? 0) (all only in advanced mode, panel open)")
         row("System power (SMC)", yesNo(s.sensors?.systemWatts != nil))
-        row("GPU", s.gpu != nil ? "yes" : (model.monitor.includeGPU ? "no" : "not requested"))
+        row("GPU", s.gpu != nil ? "yes" : (model.monitor.needs.gpu ? "no" : "not requested"))
         row("Summary", model.monitor.summary.title)
 
         section("Preferences")
         row("Menu bar", prefs.visibleModules.map(\.rawValue).joined(separator: ", ") + " (\(prefs.style.rawValue))")
-        row("Interval", "\(prefs.interval) s")
+        row("Interval", "\(prefs.interval) s, temperature every \(Int(prefs.temperatureInterval)) s with panel closed")
+        if let own = s.ownUsage {
+            row("This app now", "\(Format.corePercent(own.cpu)) CPU, \(Format.bytes(own.memory))")
+        }
+        row("Away (screens off or locked)", yesNo(model.monitor.isAway))
         row("Advanced", yesNo(prefs.advanced))
         row("Alerts to", prefs.alertDestination.rawValue)
         row("Alert rules", AlertKind.allCases.map { k in

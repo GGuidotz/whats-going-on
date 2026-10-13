@@ -32,8 +32,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         model.prefs.$language.dropFirst().receive(on: RunLoop.main)
             .sink { _ in NSApp.mainMenu = MainMenu.make() }
             .store(in: &bag)
-        statusItem = StatusItemController(model: model)
+        let item = StatusItemController(model: model)
+        statusItem = item
+        model.openPanel = { [weak item] in item?.showPanel() }
         model.didLaunch()
+        if !model.prefs.onboardingDone { model.showOnboarding() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

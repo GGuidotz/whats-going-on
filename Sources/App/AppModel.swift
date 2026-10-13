@@ -15,8 +15,11 @@ final class AppModel: ObservableObject {
     let delivery = AlertDelivery()
     let updater: Updater
     @Published var settingsTab: SettingsTab = .general
+    /// Apre il pannello della barra (lo imposta AppDelegate): la guida ci porta l'utente alla fine.
+    var openPanel: (() -> Void)?
 
     private let settingsWindow = SettingsWindowController()
+    private let onboardingWindow = OnboardingWindowController()
     private var bag = Set<AnyCancellable>()
 
     var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0" }
@@ -33,6 +36,25 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             delivery.deliver(event, to: prefs.alertDestination)
         }
+        watchAway()
+    }
+
+    /// Schermi spenti o Mac bloccato: il motore rallenta (Sources/Core/SystemMonitor.swift).
+    private func watchAway() {
+        var asleep = false, locked = false
+        let update = { [weak self] in MainActor.assumeIsolated { self?.monitor.isAway = asleep || locked } }
+        let workspace = NSWorkspace.shared.notificationCenter
+        workspace.publisher(for: NSWorkspace.screensDidSleepNotification)
+            .sink { _ in asleep = true; update() }.store(in: &bag)
+        workspace.publisher(for: NSWorkspace.screensDidWakeNotification)
+            .sink { _ in asleep = false; update() }.store(in: &bag)
+        let distributed = DistributedNotificationCenter.default()
+        distributed.publisher(for: Notification.Name("com.apple.screenIsLocked"))
+            .receive(on: RunLoop.main)
+            .sink { _ in locked = true; update() }.store(in: &bag)
+        distributed.publisher(for: Notification.Name("com.apple.screenIsUnlocked"))
+            .receive(on: RunLoop.main)
+            .sink { _ in locked = false; update() }.store(in: &bag)
     }
 
     func didLaunch() {
@@ -45,14 +67,22 @@ final class AppModel: ObservableObject {
         settingsWindow.show(model: self)
     }
 
+    /// La guida dei primi passi: da sola al primo avvio, poi da Impostazioni › Generale.
+    func showOnboarding() {
+        onboardingWindow.show(model: self)
+    }
+
     private func apply() {
         monitor.interval = prefs.interval
         monitor.alertSettings = prefs.alerts
-        let wantsGPU = prefs.advanced || prefs.enabledModules.contains(.gpu)
-        if monitor.includeGPU != wantsGPU {
-            monitor.includeGPU = wantsGPU
-            monitor.refreshConfiguration()
-        }
+        // Solo ciò che qualcuno guarda: la barra, gli avvisi accesi, la modalità avanzata.
+        var needs = monitor.needs
+        needs.gpu = prefs.advanced || prefs.enabledModules.contains(.gpu)
+        needs.temperature = prefs.enabledModules.contains(.temperature) || prefs.alerts[.temperature].enabled
+        needs.temperatureInterval = prefs.temperatureInterval
+        needs.power = prefs.enabledModules.contains(.power)
+        needs.allSensors = prefs.advanced
+        monitor.needs = needs
     }
 }
 

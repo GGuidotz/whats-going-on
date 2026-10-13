@@ -20,7 +20,7 @@ project, not affiliated with Cocaine. Inspired by [Stats](https://mac-stats.com)
 | Network | download and upload speed, traffic since launch, local address |
 | Temperature | chip and GPU; every sensor in advanced mode |
 | GPU | usage and memory (advanced mode) |
-| Disk | free space, reads and writes |
+| Disk | free and used space |
 | Battery and power | level, time left, health, cycles, watts; whole-Mac power where macOS exposes it |
 
 By default the menu bar shows CPU, RAM and NET. In Settings › Menu Bar you pick readings, order and style (numbers, or
@@ -30,6 +30,14 @@ new, feedback and quit.
 
 On macOS 26 and later the panel, tabs and buttons use Liquid Glass, and the app icon is a layered Liquid Glass icon
 (Icon Composer). On macOS 14 and 15 the same elements use the system materials.
+
+## Light
+
+The goal is to stay under 1% CPU. With the panel closed the app only reads what you show in the menu bar and what the
+alerts you turned on need: temperatures, the heaviest reading, only from the chip sensors and every 30 seconds by
+default; the app list every 10. With the menu bar hidden it draws nothing, and with the displays off it slows down. You
+can see how much it really weighs in Settings › General. On first launch a short guide helps you pick what to show and
+where alerts go.
 
 ## Alerts
 

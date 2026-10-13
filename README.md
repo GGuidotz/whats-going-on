@@ -20,7 +20,7 @@ isola. Progetto indipendente, non affiliato a Cocaine. Ispirato a [Stats](https:
 | Rete | velocità di download e upload, traffico da quando è aperta, indirizzo locale |
 | Temperatura | chip e GPU; tutti i sensori in modalità avanzata |
 | GPU | utilizzo e memoria (modalità avanzata) |
-| Disco | spazio libero, letture e scritture |
+| Disco | spazio libero e occupato |
 | Batteria e consumo | livello, tempo rimasto, salute, cicli, watt; consumo del Mac dove macOS lo espone |
 
 Nella barra dei menu, di predefinito: CPU, RAM e RETE. In Impostazioni › Barra dei menu scegli moduli, ordine e stile
@@ -30,6 +30,13 @@ impostazioni, novità, feedback, esci.
 
 Su macOS 26 e successivi pannello, schede e pulsanti sono di Liquid Glass, e l'icona è un'icona Liquid Glass a strati
 (Icon Composer). Su macOS 14 e 15 gli stessi elementi usano i materiali di sistema.
+
+## Leggera
+
+L'obiettivo è restare sotto l'1% di CPU. A pannello chiuso l'app legge solo ciò che mostri nella barra e ciò che serve
+agli avvisi accesi: le temperature, la lettura più pesante, solo dai sensori del chip e di base ogni 30 secondi; l'elenco
+delle app ogni 10. Con la barra nascosta non disegna nulla, a schermi spenti rallenta. Quanto pesa davvero lo vedi in
+Impostazioni › Generale. Al primo avvio una guida breve aiuta a scegliere cosa vedere e dove ricevere gli avvisi.
 
 ## Avvisi
 

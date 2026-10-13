@@ -69,6 +69,12 @@ final class Preferences: ObservableObject {
         didSet { ColorScale.current = colorScale; save(colorScale, "colorScale") }
     }
     @Published var interval: Double { didSet { defaults.set(interval, forKey: "interval") } }
+    /// Secondi tra due letture della temperatura a pannello chiuso (i sensori sono la lettura più cara).
+    @Published var temperatureInterval: Double {
+        didSet { defaults.set(temperatureInterval, forKey: "temperatureInterval") }
+    }
+    /// La guida dei primi passi è già stata vista.
+    @Published var onboardingDone: Bool { didSet { defaults.set(onboardingDone, forKey: "onboardingDone") } }
     @Published var advanced: Bool { didSet { defaults.set(advanced, forKey: "advanced") } }
     @Published var language: AppLanguage {
         didSet { Localization.language = language; save(language, "language") }
@@ -92,6 +98,8 @@ final class Preferences: ObservableObject {
         labelGap = UserDefaults.standard.object(forKey: "labelGap") as? Double ?? 1
         colorScale = load("colorScale", ColorScale())
         interval = UserDefaults.standard.object(forKey: "interval") as? Double ?? 2
+        temperatureInterval = UserDefaults.standard.object(forKey: "temperatureInterval") as? Double ?? 30
+        onboardingDone = UserDefaults.standard.bool(forKey: "onboardingDone")
         advanced = UserDefaults.standard.bool(forKey: "advanced")
         language = load("language", AppLanguage.system)
         alerts = load("alerts", AlertSettings())

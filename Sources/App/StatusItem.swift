@@ -18,6 +18,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private var lastClose = Date.distantPast
     /// Ciò che è disegnato adesso: se la lettura nuova dà la stessa immagine, non si ridisegna nulla (meno CPU).
     private var drawn: Drawn?
+    private var lastRedraw = Date.distantPast
 
     private struct Drawn: Equatable {
         var entries: [MenuBarEntry]
@@ -53,8 +54,20 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         model.prefs.objectWillChange.receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.redraw() }
             .store(in: &bag)
+        // La barra torna visibile (uscita dallo schermo intero, barra che ricompare): subito i valori di adesso.
+        NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] note in
+                guard let self, let window = note.object as? NSWindow, window === self.item.button?.window,
+                      self.isVisible else { return }
+                self.redraw()
+            }
+            .store(in: &bag)
         redraw()
     }
+
+    /// La voce si vede: no con un'app a schermo intero o con la barra dei menu nascosta.
+    private var isVisible: Bool { item.button?.window?.occlusionState.contains(.visible) ?? true }
 
     private var isDark: Bool {
         item.button?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -62,6 +75,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
     func redraw() {
         guard let button = item.button else { return }
+        // Barra nascosta: non si disegna. Un controllo ogni 30 s resta, nel caso macOS non avvisi del ritorno.
+        guard isVisible || Date().timeIntervalSince(lastRedraw) >= 30 else { return }
+        lastRedraw = Date()
         let prefs = model.prefs, monitor = model.monitor
         let entries = MenuBarRenderer.entries(prefs.visibleModules, snapshot: monitor.snapshot, history: monitor.history,
                                               graphs: prefs.style == .graphs)

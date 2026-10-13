@@ -82,10 +82,6 @@ struct SummaryEngine {
             }
         }
 
-        if let d = s.disk, d.readRate + d.writeRate >= 200_000_000 {
-            notes.append(Note(level: .busy, weight: 20, text: L("Il disco lavora molto (%@)", Format.rate(d.readRate + d.writeRate))))
-        }
-
         notes.sort { $0.weight > $1.weight }
         guard let first = notes.first else {
             // Tutto tranquillo: la seconda riga dice comunque chi lavora di più, se qualcuno lavora.

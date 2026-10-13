@@ -3,7 +3,9 @@
 //   ma non sono documentate: le dichiariamo qui sotto, isolate in questo file. Se un aggiornamento di macOS le cambia,
 //   la riga Temperatura sparisce invece di rompere l'app.
 // - Intel: temperatura della CPU dall'SMC (TC0P e simili).
-// - Consumo totale del Mac: chiave SMC PSTR, dove c'è.
+// - Consumo totale del Mac: chiave SMC PSTR, dove c'è (watts(), a parte: costa una chiamata sola).
+// Leggerezza: su Apple silicon i sensori sono decine e ognuno è una chiamata al sistema eventi. Di solito si leggono
+// solo quelli del chip e della GPU (essential); tutti, solo per l'elenco della modalità avanzata a pannello aperto.
 
 import Foundation
 import IOKit
@@ -35,6 +37,8 @@ final class SensorReader {
     private let smc = SMC()
     private var client: CFTypeRef?
     private var services: [(name: String, service: CFTypeRef)] = []
+    /// I sensori del chip e della GPU: bastano per la barra, gli avvisi e il pannello.
+    private var essential: [(name: String, service: CFTypeRef)] = []
     private let isAppleSilicon: Bool = {
         var value: Int32 = 0
         var size = MemoryLayout<Int32>.size
@@ -51,10 +55,12 @@ final class SensorReader {
                 guard let name = IOHIDServiceClientCopyProperty(service, "Product" as CFString) as? String else { return nil }
                 return (name, service)
             }
+            essential = services.filter { Self.isChipSensor($0.name) || $0.name.localizedCaseInsensitiveContains("GPU") }
         }
     }
 
-    func read() -> SensorsSample? {
+    /// `all`: legge ogni sensore e riempie l'elenco completo (modalità avanzata); altrimenti solo chip e GPU.
+    func read(all: Bool) -> SensorsSample? {
         var sensors: [TemperatureSensor] = []
         var chip: Double?
         var gpu: Double?
@@ -62,16 +68,16 @@ final class SensorReader {
         if isAppleSilicon {
             // Più sensori con lo stesso nome: teniamo il più caldo.
             var byName: [String: Double] = [:]
-            for (name, service) in services {
+            for (name, service) in all ? services : essential {
                 guard let event = IOHIDServiceClientCopyEvent(service, Self.temperatureEvent, 0, 0) else { continue }
                 let value = IOHIDEventGetFloatValue(event, Self.temperatureField)
                 guard value > 0, value < 130 else { continue }
                 byName[name] = max(byName[name] ?? 0, value)
             }
-            sensors = byName.map { TemperatureSensor(name: $0.key, celsius: $0.value) }.sorted { $0.name < $1.name }
-            let die = sensors.filter { Self.isChipSensor($0.name) }.map(\.celsius)
-            chip = die.max()
-            gpu = sensors.filter { $0.name.localizedCaseInsensitiveContains("GPU") }.map(\.celsius).max()
+            let found = byName.map { TemperatureSensor(name: $0.key, celsius: $0.value) }
+            chip = found.filter { Self.isChipSensor($0.name) }.map(\.celsius).max()
+            gpu = found.filter { $0.name.localizedCaseInsensitiveContains("GPU") }.map(\.celsius).max()
+            if all { sensors = found.sorted { $0.name < $1.name } }
         } else if let smc {
             for key in ["TC0P", "TC0D", "TC0E", "TC0F", "TCXC"] {
                 if let value = smc.value(key), value > 0, value < 130 {
@@ -85,11 +91,14 @@ final class SensorReader {
             }
         }
 
-        var watts: Double?
-        if let value = smc?.value("PSTR"), value > 0.1, value < 1000 { watts = value }
+        guard chip != nil || !sensors.isEmpty else { return nil }
+        return SensorsSample(chip: chip, gpu: gpu, systemWatts: nil, all: sensors)
+    }
 
-        guard chip != nil || watts != nil || !sensors.isEmpty else { return nil }
-        return SensorsSample(chip: chip, gpu: gpu, systemWatts: watts, all: sensors)
+    /// Consumo dell'intero Mac in watt (SMC PSTR), se il Mac lo espone.
+    func watts() -> Double? {
+        guard let value = smc?.value("PSTR"), value > 0.1, value < 1000 else { return nil }
+        return value
     }
 
     /// I sensori del die: "PMU tdie…", "pACC/eACC MTR Temp Sensor…", "SOC MTR…". Non NAND, batteria o gas gauge.

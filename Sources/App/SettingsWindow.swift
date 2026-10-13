@@ -37,26 +37,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     func show(model: AppModel) {
         if window == nil {
-            let host = NSHostingController(rootView: SettingsView(model: model))
-            let effect = NSVisualEffectView()
-            effect.material = .sidebar
-            effect.blendingMode = .behindWindow
-            effect.state = .followsWindowActiveState
-            let container = NSViewController()
-            container.view = effect
-            container.addChild(host)
-            effect.frame = NSRect(origin: .zero, size: SettingsView.size)
-            host.view.frame = effect.bounds
-            host.view.autoresizingMask = [.width, .height]
-            effect.addSubview(host.view)
-            let w = NSWindow(contentViewController: container)
-            w.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
-            w.titlebarAppearsTransparent = true
-            w.titleVisibility = .hidden
-            w.isReleasedWhenClosed = false
+            let w = TranslucentWindow.make(SettingsView(model: model), size: SettingsView.size)
             w.delegate = self
-            w.setContentSize(NSSize(width: SettingsView.size.width, height: SettingsView.size.height))
-            w.center()
             window = w
         }
         window?.title = L("Impostazioni di What's Going On")   // per Mission Control e VoiceOver, anche dopo un cambio di lingua
@@ -72,6 +54,34 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
                 self?.window = nil
             }
         }
+    }
+}
+
+/// Una finestra con il fondo traslucido del sistema (materiale delle barre laterali) e la barra del titolo trasparente:
+/// impostazioni e guida iniziale.
+@MainActor
+enum TranslucentWindow {
+    static func make(_ root: some View, size: CGSize) -> NSWindow {
+        let host = NSHostingController(rootView: root)
+        let effect = NSVisualEffectView()
+        effect.material = .sidebar
+        effect.blendingMode = .behindWindow
+        effect.state = .followsWindowActiveState
+        let container = NSViewController()
+        container.view = effect
+        container.addChild(host)
+        effect.frame = NSRect(origin: .zero, size: size)
+        host.view.frame = effect.bounds
+        host.view.autoresizingMask = [.width, .height]
+        effect.addSubview(host.view)
+        let w = NSWindow(contentViewController: container)
+        w.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+        w.titlebarAppearsTransparent = true
+        w.titleVisibility = .hidden
+        w.isReleasedWhenClosed = false
+        w.setContentSize(size)
+        w.center()
+        return w
     }
 }
 
