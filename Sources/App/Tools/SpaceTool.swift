@@ -25,6 +25,11 @@ final class SpaceModel: ObservableObject {
     @Published var message: String?
     /// Cresce a ogni modifica dell'albero: la mappa ricalcola la disposizione.
     @Published private(set) var revision = 0
+    /// Per la sezione Debug: i conti dell'ultima lettura e cosa ha disegnato la mappa.
+    @Published private(set) var stats: ScanStats?
+    @Published private(set) var lastDuration: TimeInterval?
+    @Published var mapCells = 0
+    @Published var mapSize = CGSize.zero
 
     private var scanner: DiskScanner?
     let home = NSHomeDirectory()
@@ -46,8 +51,12 @@ final class SpaceModel: ObservableObject {
         tips = []
         selection = nil
         message = nil
+        stats = nil
+        lastDuration = nil
+        mapCells = 0
         phase = .scanning(ScanProgress())
         diag(.app, "space scan started (full disk access: \(fullDiskAccess))")
+        let started = Date()
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let result = scanner.scan { progress in
                 DispatchQueue.main.async {
@@ -61,8 +70,13 @@ final class SpaceModel: ObservableObject {
                 MainActor.assumeIsolated {
                     guard let self, self.scanner === scanner else { return }
                     self.scanner = nil
+                    self.stats = scanner.stats
+                    self.lastDuration = Date().timeIntervalSince(started)
                     guard let result else {
                         self.phase = .idle
+                        let failure = scanner.stats.failure ?? "no result"
+                        self.message = L("La lettura non ha dato una mappa. Apri Debug qui a destra e copiami il testo.")
+                        diag(.app, "space scan failed: \(failure)")
                         return
                     }
                     self.result = result
@@ -192,6 +206,50 @@ final class SpaceModel: ObservableObject {
         diag(.app, "trashed \(moved.count) items, \(failed.count) failed")
     }
 
+    /// Il testo della sezione Debug: in inglese come il report di diagnostica, da copiare in una segnalazione.
+    /// Contiene percorsi di cartelle: resta sul Mac finché non lo copi tu.
+    var debugReport: String {
+        var out: [String] = []
+        func row(_ key: String, _ value: String) { out.append("\(key): \(value)") }
+        func bytes(_ b: Int64) -> String { "\(Format.diskBytes(b)) (\(b))" }
+        row("App", SystemInfo.oneLine)
+        switch phase {
+        case .idle: row("Phase", stats?.failure != nil ? "failed" : "idle")
+        case .scanning(let p): row("Phase", "scanning, \(p.items) items, \(Format.diskBytes(p.bytes))")
+        case .done: row("Phase", "done")
+        }
+        row("Full Disk Access", fullDiskAccess ? "yes" : "no")
+        row("Volume", "used \(bytes(volume.used)), total \(bytes(volume.total)), free \(bytes(volume.free))")
+        if let lastDuration { row("Duration", String(format: "%.1f s", lastDuration)) }
+        if let s = stats {
+            row("Failure", s.failure ?? "none")
+            row("Min kept size", bytes(s.minKeep))
+            row("Devices", s.devices.map { String($0) }.joined(separator: ", "))
+            row("Folders", "\(s.directories) opened, \(s.closed) closed, \(s.recovered) recovered")
+            row("Files", "\(s.files), hard links skipped \(s.hardLinks)")
+            row("Skipped", "\(s.skipped) by list, \(s.otherDevice) on other volumes")
+            row("Problems", "\(s.unreadable) unreadable, \(s.errors) errors, \(s.statFailed) stat failed, \(s.cycles) cycles")
+            row("Nodes", "\(s.nodes)")
+            if !s.unreadableSamples.isEmpty {
+                out.append("Unreadable (first \(s.unreadableSamples.count)):")
+                out += s.unreadableSamples.map { "  " + $0 }
+            }
+        } else {
+            row("Scan", "none yet")
+        }
+        if let tree {
+            let root = tree[tree.root]
+            row("Tree", "\(tree.nodes.count) nodes, root \(bytes(root.size)), \(root.children.count) children")
+            row("Map", "focus \(focus), \(mapCells) cells in \(Int(mapSize.width))×\(Int(mapSize.height)) pt")
+            out.append("Largest in view:")
+            for c in tree[focus].children.prefix(12) {
+                let n = tree[c]
+                out.append("  \(n.name) · \(Format.diskBytes(n.size)) · \(n.isDirectory ? "folder" : (n.isSynthetic ? "grouped" : "file")) · \(n.children.count) children")
+            }
+        }
+        return out.joined(separator: "\n")
+    }
+
     func item(_ index: Int) -> FoundItem? {
         guard let tree, let path = tree.path(of: index) else { return nil }
         return FoundItem(path: path, size: tree[index].size, date: tree[index].modified)
@@ -237,6 +295,7 @@ struct SpaceView: View {
                             }
                         }
                     }
+                    SpaceDebugBox(space: space)
                 }
                 .padding(14)
             }
@@ -302,6 +361,9 @@ struct SpaceView: View {
         switch space.phase {
         case .idle:
             emptyState
+            if let message = space.message {
+                Text(message).font(.callout).foregroundStyle(.orange).frame(maxWidth: .infinity)
+            }
         case .scanning(let p):
             scanning(p)
         case .done:
@@ -311,7 +373,11 @@ struct SpaceView: View {
                 TreemapView(tree: tree, focus: space.focus, selection: space.selection, revision: space.revision,
                             hovered: $hovered,
                             select: { space.selection = $0 },
-                            open: { space.open($0) })
+                            open: { space.open($0) },
+                            report: { cells, size in
+                                space.mapCells = cells
+                                space.mapSize = size
+                            })
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 statusLine(tree)
@@ -458,6 +524,8 @@ struct TreemapView: View {
     @Binding var hovered: Int?
     var select: (Int?) -> Void
     var open: (Int) -> Void
+    /// Quante celle ha disegnato e in che spazio (per la sezione Debug).
+    var report: (Int, CGSize) -> Void = { _, _ in }
 
     @State private var cells: [Cell] = []
     @State private var key = LayoutKey()
@@ -540,6 +608,7 @@ struct TreemapView: View {
             }
         }
         cells = result
+        report(result.count, size)
     }
 
     private func hit(_ point: CGPoint) -> Int? {
@@ -593,6 +662,48 @@ extension FileKind {
 
     /// Il colore del testo sopra il rettangolo.
     var ink: Color { self == .caches ? .black.opacity(0.8) : .white }
+}
+
+// MARK: - Debug
+
+/// I conti dell'ultima lettura, da copiare quando la mappa non fa quello che deve.
+private struct SpaceDebugBox: View {
+    @ObservedObject var space: SpaceModel
+    @State private var expanded = false
+    @State private var copied = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded) {
+            VStack(alignment: .leading, spacing: 8) {
+                ScrollView {
+                    Text(space.debugReport)
+                        .font(.system(.caption2, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(height: 220)
+                HStack {
+                    Button(L("Copia")) {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(space.debugReport, forType: .string)
+                        copied = true
+                    }
+                    .glassButton()
+                    .controlSize(.small)
+                    if copied { Text(L("Copiato.")).font(.caption).foregroundStyle(.secondary) }
+                }
+                Text(L("Contiene i percorsi di alcune cartelle: resta sul Mac finché non lo copi tu."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 6)
+        } label: {
+            Label(L("Debug"), systemImage: "ladybug")
+                .font(.headline)
+        }
+        .onChange(of: expanded) { _, _ in copied = false }
+    }
 }
 
 // MARK: - Schede a destra

@@ -76,6 +76,30 @@ struct ScanProgress: Equatable {
     var current = ""
 }
 
+/// Cosa è successo durante la lettura, per la sezione Debug degli Attrezzi.
+struct ScanStats {
+    var directories = 0
+    var files = 0
+    var closed = 0
+    var unreadable = 0
+    var errors = 0
+    var statFailed = 0
+    var cycles = 0
+    var skipped = 0
+    var otherDevice = 0
+    var hardLinks = 0
+    /// Cartelle rimaste aperte e chiuse a mano (fts non ha dato la visita finale).
+    var recovered = 0
+    /// Le prime cartelle che non si sono potute aprire, con l'errore.
+    var unreadableSamples: [String] = []
+    var devices: [Int32] = []
+    var minKeep: Int64 = 0
+    var nodes = 0
+    var cancelled = false
+    /// Perché la lettura non ha dato un risultato (nil se l'ha dato o se l'hai interrotta tu).
+    var failure: String?
+}
+
 struct DiskTree {
     var nodes: [DiskNode]
     var root: Int
@@ -168,6 +192,8 @@ struct DiskScanResult {
 final class DiskScanner: @unchecked Sendable {
     private let lock = NSLock()
     private var cancelled = false
+    /// Si legge a lettura finita, sullo stesso thread che ha ricevuto il risultato.
+    private(set) var stats = ScanStats()
 
     func cancel() {
         lock.lock(); cancelled = true; lock.unlock()
@@ -229,8 +255,14 @@ final class DiskScanner: @unchecked Sendable {
         guard let rootC = strdup(root) else { return nil }
         defer { free(rootC) }
         let argv: [UnsafeMutablePointer<CChar>?] = [rootC, nil]
+        stats = ScanStats()
+        stats.minKeep = minKeep
+        stats.devices = allowedDevices.sorted()
         guard let fts = argv.withUnsafeBufferPointer({ fts_open($0.baseAddress, FTS_PHYSICAL | FTS_NOCHDIR, nil) })
-        else { return nil }
+        else {
+            stats.failure = "fts_open failed: " + String(cString: strerror(errno))
+            return nil
+        }
         defer { fts_close(fts) }
 
         var nodes: [DiskNode] = []
@@ -251,10 +283,42 @@ final class DiskScanner: @unchecked Sendable {
             }
         }
 
+        /// Chiude la cartella in cima alla pila: somma nel genitore, nodo se è abbastanza grande.
+        func closeTop() {
+            guard let frame = stack.popLast() else { return }
+            stats.closed += 1
+            // La cartella decide la data delle cartelle rigenerabili trovate dentro di lei.
+            for i in frame.pendingRebuildable {
+                let latest = max(frame.latest, frame.modified?.timeIntervalSince1970 ?? 0)
+                findings.rebuildable[i].date = latest > 0 ? Date(timeIntervalSince1970: latest) : nil
+            }
+            let parent = stack.last
+            if frame.rebuildable, frame.size >= 50_000_000, let parent {
+                findings.rebuildable.append(FoundItem(path: frame.path, size: frame.size, date: nil))
+                parent.pendingRebuildable.append(findings.rebuildable.count - 1)
+            }
+            if let parent {
+                parent.size += frame.size
+                parent.items += frame.items + 1
+                for k in 0..<parent.kinds.count { parent.kinds[k] += frame.kinds[k] }
+                if !frame.insideRebuildable || parent.insideRebuildable { parent.latest = max(parent.latest, frame.latest) }
+            }
+            if parent == nil || frame.size >= minKeep {
+                let index = Self.makeNode(frame, in: &nodes)
+                if let parent { parent.kept.append(index) } else { rootIndex = index }
+            } else if let parent {
+                parent.smallSize += frame.size
+                parent.smallItems += frame.items + 1
+            }
+        }
+
         while let entry = fts_read(fts) {
             counter += 1
             if counter & 4095 == 0 {
-                if isCancelled { return nil }
+                if isCancelled {
+                    stats.cancelled = true
+                    return nil
+                }
                 report()
             }
             let e = entry.pointee
@@ -266,9 +330,11 @@ final class DiskScanner: @unchecked Sendable {
                 let path = String(cString: e.fts_path)
                 let st = e.fts_statp.pointee
                 if level > 0, skipped.contains(path) || !allowedDevices.contains(st.st_dev) {
+                    if skipped.contains(path) { stats.skipped += 1 } else { stats.otherDevice += 1 }
                     fts_set(fts, entry, FTS_SKIP)
                     continue
                 }
+                stats.directories += 1
                 let name = level == 0 ? path : (path as NSString).lastPathComponent
                 let parent = stack.last
                 let rebuildable = !(parent?.insideRebuildable ?? false) && Self.isRebuildable(name, parent: parent?.name)
@@ -282,39 +348,25 @@ final class DiskScanner: @unchecked Sendable {
                 if level <= 3 { state.current = path }
 
             case FTS_DP:
-                guard let frame = stack.last, frame.level == level else { continue }
-                stack.removeLast()
-                // La cartella decide la data delle cartelle rigenerabili trovate dentro di lei.
-                for i in frame.pendingRebuildable {
-                    let latest = max(frame.latest, frame.modified?.timeIntervalSince1970 ?? 0)
-                    findings.rebuildable[i].date = latest > 0 ? Date(timeIntervalSince1970: latest) : nil
+                // Una cartella saltata torna qui senza essere mai stata aperta: in cima c'è il suo genitore.
+                // Se in cima ci sono cartelle più profonde rimaste aperte, si chiudono prima loro.
+                while let top = stack.last, top.level > level {
+                    stats.recovered += 1
+                    closeTop()
                 }
-                let parent = stack.last
-                if frame.rebuildable, frame.size >= 50_000_000, let parent {
-                    findings.rebuildable.append(FoundItem(path: frame.path, size: frame.size, date: nil))
-                    parent.pendingRebuildable.append(findings.rebuildable.count - 1)
-                }
-                if let parent {
-                    parent.size += frame.size
-                    parent.items += frame.items + 1
-                    for k in 0..<parent.kinds.count { parent.kinds[k] += frame.kinds[k] }
-                    if !frame.insideRebuildable || parent.insideRebuildable { parent.latest = max(parent.latest, frame.latest) }
-                }
-                if parent == nil || frame.size >= minKeep {
-                    let index = Self.makeNode(frame, in: &nodes)
-                    if let parent { parent.kept.append(index) } else { rootIndex = index }
-                } else if let parent {
-                    parent.smallSize += frame.size
-                    parent.smallItems += frame.items + 1
-                }
+                if let top = stack.last, top.level == level { closeTop() }
 
             case FTS_F, FTS_DEFAULT, FTS_SL, FTS_SLNONE:
                 guard let frame = stack.last else { continue }
                 let st = e.fts_statp.pointee
                 if info == FTS_F, st.st_nlink > 1 {
                     let key = UInt64(UInt32(bitPattern: st.st_dev)) << 40 ^ st.st_ino
-                    if !seenLinks.insert(key).inserted { continue }
+                    if !seenLinks.insert(key).inserted {
+                        stats.hardLinks += 1
+                        continue
+                    }
                 }
+                stats.files += 1
                 let size = Int64(st.st_blocks) * 512
                 state.items += 1
                 state.bytes += size
@@ -360,14 +412,36 @@ final class DiskScanner: @unchecked Sendable {
                 }
 
             case FTS_DNR, FTS_ERR:
+                // fts ha già dato FTS_D per questa cartella e non darà FTS_DP: si chiude qui con quello che c'è
+                // (la sua voce di cartella), altrimenti tutto ciò che sta sopra resterebbe aperto.
                 findings.unreadable += 1
+                if info == FTS_DNR { stats.unreadable += 1 } else { stats.errors += 1 }
+                if stats.unreadableSamples.count < 15 {
+                    stats.unreadableSamples.append(String(cString: e.fts_path) + " (" + String(cString: strerror(e.fts_errno)) + ")")
+                }
+                if let top = stack.last, top.level == level { closeTop() }
+
+            case FTS_NS:
+                stats.statFailed += 1
+
+            case FTS_DC:
+                stats.cycles += 1
 
             default:
                 continue
             }
         }
 
-        guard rootIndex >= 0 else { return nil }
+        // Se qualcosa è rimasto aperto (non dovrebbe), si chiude ora: meglio una mappa che niente.
+        while !stack.isEmpty {
+            stats.recovered += 1
+            closeTop()
+        }
+        stats.nodes = nodes.count
+        guard rootIndex >= 0 else {
+            stats.failure = nodes.isEmpty ? "no entries read from \(root)" : "root folder never closed"
+            return nil
+        }
         report(force: true)
 
         // Ciò che la lettura non vede: snapshot, volumi di sistema, cartelle protette.

@@ -385,3 +385,7 @@
 "node_modules, .build, DerivedData e simili: si ricostruiscono quando riapri il progetto (npm install, swift build, Xcode)." = "node_modules, .build, DerivedData and the like: they're rebuilt when you reopen the project (npm install, swift build, Xcode).";
 "normale" = "normal";
 "tutto il disco" = "the whole disk";
+"La lettura non ha dato una mappa. Apri Debug qui a destra e copiami il testo." = "The scan produced no map. Open Debug on the right and copy the text.";
+"Copiato." = "Copied.";
+"Debug" = "Debug";
+"Contiene i percorsi di alcune cartelle: resta sul Mac finché non lo copi tu." = "It includes the paths of some folders: it stays on this Mac unless you copy it.";
