@@ -1,7 +1,7 @@
 // Attrezzi › Spazio: cosa occupa il disco, come GrandPerspective, e cosa si può togliere.
 // Niente gira finché non premi "Analizza". La lettura (Sources/Core/DiskScanner.swift) va su una coda in background e
-// si interrompe quando vuoi; chiusa la finestra, l'albero se ne va. La mappa si disegna in un solo Canvas, due livelli
-// alla volta: si entra in una cartella con un doppio clic e si risale dalla barra del percorso.
+// si interrompe quando vuoi; chiusa la finestra, l'albero se ne va. La mappa (SpaceMap.swift) mostra tutti i livelli in
+// un'immagine; si entra con doppio clic o zoom avanti, si risale con zoom indietro o dalla barra del percorso.
 // Ciò che togli va nel Cestino, sempre con conferma; solo dentro la tua cartella utente e in Applicazioni.
 
 import AppKit
@@ -18,8 +18,23 @@ final class SpaceModel: ObservableObject {
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var result: DiskScanResult?
     @Published private(set) var tips: [SpaceTip] = []
-    @Published var focus = 0
+    /// La cartella mostrata dalla mappa. Si cambia con go(to:), che tiene la cronologia per Indietro.
+    @Published private(set) var focus = 0
     @Published var selection: Int?
+    /// Il rettangolo sotto il puntatore (o la riga dell'elenco): a parte, perché cambia a ogni movimento.
+    let pointer = MapPointer()
+    @Published var showInspector = true
+    /// Cerca: i nodi il cui nome contiene il testo, dal più grande.
+    @Published var query = "" {
+        didSet { if query != oldValue { scheduleSearch() } }
+    }
+    @Published private(set) var matches: [Int] = []
+    private(set) var matchSet = Set<Int>()
+    /// I file più grandi sotto la cartella mostrata e il percorso dove si concentra lo spazio.
+    @Published private(set) var largestFiles: [Int] = []
+    @Published private(set) var hotPath: [Int] = []
+    private var history: [Int] = []
+    private var searchWork: DispatchWorkItem?
     @Published private(set) var fullDiskAccess = FullDiskAccess.granted
     @Published private(set) var volume = DiskScanner.volume()
     @Published var message: String?
@@ -53,6 +68,11 @@ final class SpaceModel: ObservableObject {
         message = nil
         stats = nil
         lastDuration = nil
+        history = []
+        matches = []
+        matchSet = []
+        largestFiles = []
+        hotPath = []
         mapCells = 0
         phase = .scanning(ScanProgress())
         diag(.app, "space scan started (full disk access: \(fullDiskAccess))")
@@ -81,6 +101,8 @@ final class SpaceModel: ObservableObject {
                     }
                     self.result = result
                     self.focus = result.tree.root
+                    self.refreshDerived()
+                    self.runSearch()
                     self.tips = SpaceAdvisor.tips(for: result, home: self.home)
                     self.revision += 1
                     self.phase = .done
@@ -99,22 +121,162 @@ final class SpaceModel: ObservableObject {
 
     // MARK: - Navigazione
 
+    var canGoBack: Bool { !history.isEmpty }
+    var canZoomOut: Bool { tree.map { focus != $0.root } ?? false }
+
+    /// Mostra una cartella; quella di prima va nella cronologia.
+    func go(to index: Int) {
+        guard let tree, tree.nodes.indices.contains(index), index != focus else { return }
+        history.append(focus)
+        if history.count > 50 { history.removeFirst() }
+        focus = index
+        refreshDerived()
+    }
+
+    func back() {
+        guard let previous = history.popLast(), let tree, tree.nodes.indices.contains(previous) else { return }
+        selection = focus
+        focus = previous
+        refreshDerived()
+    }
+
+    /// Doppio clic: entra in una cartella; su un file entra nella cartella che lo contiene e lo sceglie.
     func open(_ index: Int) {
         guard let tree, tree.nodes.indices.contains(index) else { return }
         let node = tree[index]
         if node.isDirectory, !node.children.isEmpty {
-            focus = index
+            go(to: index)
             selection = nil
         } else if node.parent >= 0 {
-            focus = node.parent
+            if node.parent != focus { go(to: node.parent) }
             selection = index
         }
     }
 
+    /// Zoom avanti sulla scelta (o, se è un file, sulla sua cartella).
+    func zoomIn() {
+        guard let selection else { return }
+        open(selection)
+    }
+
+    /// Zoom indietro: la cartella che contiene quella mostrata.
     func up() {
         guard let tree, focus != tree.root, tree[focus].parent >= 0 else { return }
-        selection = focus
-        focus = tree[focus].parent
+        let current = focus
+        go(to: tree[focus].parent)
+        selection = current
+    }
+
+    /// Livello su: sceglie la cartella che contiene la scelta (senza uscire dalla mappa).
+    func selectParent() {
+        guard let tree, let selection, selection != focus else { return }
+        let parent = tree[selection].parent
+        self.selection = parent == focus || parent < 0 ? nil : parent
+    }
+
+    /// Livello giù: sceglie l'elemento più grande dentro la scelta (o, senza scelta, il più grande della mappa).
+    func selectChild() {
+        guard let tree else { return }
+        let base = selection ?? focus
+        if let first = tree[base].children.first { selection = first }
+    }
+
+    /// Clic su una riga dell'elenco: la sceglie e, se non è nella mappa mostrata, apre la cartella che la contiene.
+    func reveal(inMap index: Int) {
+        guard let tree, tree.nodes.indices.contains(index) else { return }
+        var i = index
+        var inside = false
+        while i >= 0 {
+            if i == focus { inside = true; break }
+            if i == tree.root { break }
+            i = tree[i].parent
+        }
+        if !inside, tree[index].parent >= 0 { go(to: tree[index].parent) }
+        selection = index
+    }
+
+    var selectedPath: String? { selection.flatMap { tree?.path(of: $0) } }
+
+    /// Apri: un file con la sua app, una cartella entrandoci.
+    func openSelection() {
+        guard let tree, let selection else { return }
+        if tree[selection].isDirectory, !tree[selection].children.isEmpty {
+            open(selection)
+        } else if let path = tree.path(of: selection) {
+            NSWorkspace.shared.open(URL(fileURLWithPath: path))
+        }
+    }
+
+    func quickLook() {
+        guard let path = selectedPath else { return }
+        QuickLook.shared.toggle(URL(fileURLWithPath: path))
+    }
+
+    func trashSelection() {
+        guard let selection, let item = item(selection), canTrash(item.path) else { return }
+        trash([item])
+    }
+
+    var canTrashSelection: Bool { selectedPath.map(canTrash) ?? false }
+
+    // MARK: - Elenchi e ricerca
+
+    /// Ricalcola ciò che dipende dalla cartella mostrata: costa qualche millisecondo, solo quando cambia.
+    private func refreshDerived() {
+        guard let tree, tree.nodes.indices.contains(focus) else {
+            largestFiles = []
+            hotPath = []
+            return
+        }
+        // I file più grandi qui sotto: visita del sottoalbero (i nodi sono già solo quelli sopra la soglia).
+        var files: [Int] = []
+        var stack = [focus]
+        while let i = stack.popLast() {
+            let node = tree[i]
+            if node.isDirectory {
+                stack.append(contentsOf: node.children)
+            } else if !node.isSynthetic {
+                files.append(i)
+            }
+        }
+        files.sort { tree[$0].size > tree[$1].size }
+        largestFiles = Array(files.prefix(10))
+
+        // Dove si concentra lo spazio: si scende finché il figlio più grande tiene almeno il 40% della cartella.
+        var path: [Int] = []
+        var i = focus
+        while let first = tree[i].children.first, tree[first].isDirectory, !tree[first].isSynthetic,
+              Double(tree[first].size) >= Double(tree[i].size) * 0.4, path.count < 8 {
+            path.append(first)
+            i = first
+        }
+        hotPath = path
+    }
+
+    private func scheduleSearch() {
+        searchWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.runSearch() }
+        }
+        searchWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+    }
+
+    private func runSearch() {
+        let text = query.trimmingCharacters(in: .whitespaces)
+        guard let tree, !text.isEmpty else {
+            matches = []
+            matchSet = []
+            return
+        }
+        var found: [Int] = []
+        for (i, node) in tree.nodes.enumerated() where !node.isSynthetic && i != tree.root
+            && node.parent >= 0 && node.name.localizedCaseInsensitiveContains(text) && tree.isAttached(i) {
+            found.append(i)
+        }
+        found.sort { tree[$0].size > tree[$1].size }
+        matchSet = Set(found)
+        matches = Array(found.prefix(200))
     }
 
     // MARK: - Azioni
@@ -193,6 +355,9 @@ final class SpaceModel: ObservableObject {
             self.result = result
             tips = SpaceAdvisor.tips(for: result, home: home)
             revision += 1
+            history = []
+            refreshDerived()
+            runSearch()
         }
         selection = nil
         var parts: [String] = []
@@ -225,10 +390,10 @@ final class SpaceModel: ObservableObject {
             row("Failure", s.failure ?? "none")
             row("Min kept size", bytes(s.minKeep))
             row("Devices", s.devices.map { String($0) }.joined(separator: ", "))
-            row("Folders", "\(s.directories) opened, \(s.closed) closed, \(s.recovered) recovered")
+            row("Folders", "\(s.directories) opened, \(s.closed) closed")
             row("Files", "\(s.files), hard links skipped \(s.hardLinks)")
             row("Skipped", "\(s.skipped) by list, \(s.otherDevice) on other volumes")
-            row("Problems", "\(s.unreadable) unreadable, \(s.errors) errors, \(s.statFailed) stat failed, \(s.cycles) cycles")
+            row("Problems", "\(s.unreadable) unreadable, \(s.errors) read errors")
             row("Nodes", "\(s.nodes)")
             if !s.unreadableSamples.isEmpty {
                 out.append("Unreadable (first \(s.unreadableSamples.count)):")
@@ -263,7 +428,6 @@ struct SpaceView: View {
     @ObservedObject var mole: MoleRunner
     @ObservedObject var advice: AdviceModel
     @ObservedObject var prefs: Preferences
-    @State private var hovered: Int?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -277,29 +441,38 @@ struct SpaceView: View {
             .padding(.bottom, 14)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-            Divider()
+            if space.showInspector || space.phase != .done {
+                Divider()
+                inspector
+                    .frame(width: 330)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+    }
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if let selection = space.selection, let tree = space.tree, tree.nodes.indices.contains(selection) {
-                        SelectionCard(space: space, index: selection)
-                    }
-                    if space.phase == .done { tipsSection }
-                    ToolSection(title: L("Pulizia con Mole"), symbol: "sparkles") {
-                        MoleBox(runner: mole, command: .clean)
-                    }
-                    if prefs.intelligence, let result = space.result {
-                        ToolSection(title: L("Apple Intelligence (sperimentale)"), symbol: "apple.intelligence") {
-                            AdviceBox(advice: advice) {
-                                advice.ask(.space, context: SpaceAdvisor.summary(result, tips: space.tips, home: space.home))
-                            }
+    private var inspector: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                if let selection = space.selection, let tree = space.tree, tree.nodes.indices.contains(selection) {
+                    SelectionCard(space: space, index: selection)
+                }
+                if space.phase == .done, let tree = space.tree {
+                    SpaceListView(space: space, pointer: space.pointer, tree: tree)
+                    tipsSection
+                }
+                ToolSection(title: L("Pulizia con Mole"), symbol: "sparkles") {
+                    MoleBox(runner: mole, command: .clean)
+                }
+                if prefs.intelligence, let result = space.result {
+                    ToolSection(title: L("Apple Intelligence (sperimentale)"), symbol: "apple.intelligence") {
+                        AdviceBox(advice: advice) {
+                            advice.ask(.space, context: SpaceAdvisor.summary(result, tips: space.tips, home: space.home))
                         }
                     }
-                    SpaceDebugBox(space: space)
                 }
-                .padding(14)
+                SpaceDebugBox(space: space)
             }
-            .frame(width: 330)
+            .padding(14)
         }
     }
 
@@ -327,16 +500,17 @@ struct SpaceView: View {
             case .scanning:
                 Button(L("Interrompi")) { space.cancel() }
                     .glassButton()
-            case .idle, .done:
+            case .idle:
                 Button {
                     space.start()
                 } label: {
-                    Label(space.phase == .done ? L("Analizza di nuovo") : L("Analizza il disco"),
-                          systemImage: "magnifyingglass")
+                    Label(L("Analizza il disco"), systemImage: "magnifyingglass")
                 }
                 .glassProminentButton()
                 .controlSize(.large)
                 .keyboardShortcut("r", modifiers: .command)
+            case .done:
+                EmptyView()
             }
         }
         .padding(.top, 4)
@@ -368,19 +542,14 @@ struct SpaceView: View {
             scanning(p)
         case .done:
             if let tree = space.tree {
+                SpaceToolbar(space: space)
                 breadcrumbs(tree)
-                legend(tree)
-                TreemapView(tree: tree, focus: space.focus, selection: space.selection, revision: space.revision,
-                            hovered: $hovered,
-                            select: { space.selection = $0 },
-                            open: { space.open($0) },
-                            report: { cells, size in
-                                space.mapCells = cells
-                                space.mapSize = size
-                            })
+                headline(tree)
+                SpaceMapView(space: space, pointer: space.pointer, tree: tree)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                statusLine(tree)
+                legend(tree)
+                MapStatusLine(space: space, pointer: space.pointer, tree: tree)
                 if let message = space.message {
                     Text(message).font(.callout).foregroundStyle(.secondary)
                 }
@@ -427,12 +596,6 @@ struct SpaceView: View {
 
     private func breadcrumbs(_ tree: DiskTree) -> some View {
         HStack(spacing: 4) {
-            Button { space.up() } label: { Image(systemName: "chevron.up") }
-                .buttonStyle(.borderless)
-                .disabled(space.focus == tree.root)
-                .keyboardShortcut(.upArrow, modifiers: .command)
-                .help(L("Cartella sopra") + " (⌘↑)")
-                .accessibilityLabel(L("Cartella sopra"))
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 2) {
                     let chain = tree.ancestry(of: space.focus)
@@ -441,7 +604,7 @@ struct SpaceView: View {
                             Image(systemName: "chevron.compact.right").foregroundStyle(.tertiary).accessibilityHidden(true)
                         }
                         Button(i == tree.root ? space.volumeName : tree[i].name) {
-                            space.focus = i
+                            space.go(to: i)
                             space.selection = nil
                         }
                         .buttonStyle(.borderless)
@@ -454,6 +617,34 @@ struct SpaceView: View {
             Text(Format.diskBytes(tree[space.focus].size))
                 .font(.callout.weight(.semibold))
                 .monospacedDigit()
+        }
+    }
+
+    /// Una frase che dice dove sta lo spazio, prima ancora di guardare la mappa.
+    @ViewBuilder private func headline(_ tree: DiskTree) -> some View {
+        let focus = tree[space.focus]
+        let here = space.focus == tree.root ? space.volumeName : focus.name
+        if let last = space.hotPath.last, focus.size > 0 {
+            let share = Format.percent(Double(tree[last].size) / Double(focus.size))
+            let route = space.hotPath.map { tree[$0].name }.joined(separator: " › ")
+            HStack(spacing: 4) {
+                Text(L("Il %@ di %@ è in", share, here)).foregroundStyle(.secondary)
+                Button(route) {
+                    space.go(to: last)
+                    space.selection = nil
+                }
+                .buttonStyle(.link)
+                .lineLimit(1)
+                .truncationMode(.head)
+                Text("· " + Format.diskBytes(tree[last].size)).foregroundStyle(.secondary).monospacedDigit()
+            }
+            .font(.callout)
+        } else if let first = focus.children.first, focus.size > 0 {
+            Text(L("La voce più grande qui è %@: %@ (%@).", tree[first].name, Format.diskBytes(tree[first].size),
+                   Format.percent(Double(tree[first].size) / Double(focus.size))))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 
@@ -473,29 +664,13 @@ struct SpaceView: View {
                     .font(.caption)
                     .accessibilityElement(children: .combine)
                 }
+                HStack(spacing: 5) {
+                    Image(systemName: "square.grid.3x3.middle.filled").foregroundStyle(.secondary).accessibilityHidden(true)
+                    Text(L("Tratteggio: piccoli elementi sommati")).foregroundStyle(.secondary)
+                }
+                .font(.caption)
             }
         }
-    }
-
-    private func statusLine(_ tree: DiskTree) -> some View {
-        let shown = hovered ?? space.selection
-        return HStack(spacing: 8) {
-            if let i = shown, tree.nodes.indices.contains(i) {
-                let node = tree[i]
-                Image(systemName: node.isDirectory ? "folder" : (node.isSynthetic ? "square.grid.3x3" : "doc"))
-                    .foregroundStyle(node.kind.color)
-                    .accessibilityHidden(true)
-                Text(node.name).lineLimit(1).truncationMode(.middle)
-                Text(Format.diskBytes(node.size)).monospacedDigit().foregroundStyle(.secondary)
-                Text(node.kind.title).foregroundStyle(.tertiary)
-            } else {
-                Text(L("Clic per scegliere, doppio clic per entrare in una cartella."))
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .font(.callout)
-        .frame(height: 18)
     }
 
     // MARK: Consigli
@@ -514,154 +689,34 @@ struct SpaceView: View {
     }
 }
 
-// MARK: - Mappa
-
-struct TreemapView: View {
+/// La riga sotto la mappa: cosa c'è sotto il puntatore (o la scelta), con percorso, dimensione e tipo.
+private struct MapStatusLine: View {
+    @ObservedObject var space: SpaceModel
+    @ObservedObject var pointer: MapPointer
     var tree: DiskTree
-    var focus: Int
-    var selection: Int?
-    var revision: Int
-    @Binding var hovered: Int?
-    var select: (Int?) -> Void
-    var open: (Int) -> Void
-    /// Quante celle ha disegnato e in che spazio (per la sezione Debug).
-    var report: (Int, CGSize) -> Void = { _, _ in }
-
-    @State private var cells: [Cell] = []
-    @State private var key = LayoutKey()
-
-    struct Cell {
-        var node: Int
-        var rect: CGRect
-        var depth: Int
-    }
-
-    struct LayoutKey: Equatable {
-        var focus = -1
-        var size = CGSize.zero
-        var revision = -1
-    }
 
     var body: some View {
-        GeometryReader { geo in
-            Canvas { context, size in
-                draw(&context, size: size)
+        let shown = pointer.hovered ?? space.selection
+        HStack(spacing: 8) {
+            if let i = shown, tree.nodes.indices.contains(i) {
+                let node = tree[i]
+                Image(systemName: node.isDirectory ? "folder" : (node.isSynthetic ? "square.grid.3x3" : "doc"))
+                    .foregroundStyle(node.kind.color)
+                    .accessibilityHidden(true)
+                Text(tree.path(of: i).map { ($0 as NSString).abbreviatingWithTildeInPath } ?? node.name)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                Text(Format.diskBytes(node.size)).monospacedDigit().foregroundStyle(.secondary)
+                Text(node.kind.title).foregroundStyle(.tertiary)
+            } else {
+                Text(L("Clic per scegliere, doppio clic o Invio per lo zoom, spazio per Quick Look."))
+                    .foregroundStyle(.secondary)
             }
-            .onAppear { relayout(geo.size) }
-            .onChange(of: geo.size) { _, new in relayout(new) }
-            .onChange(of: focus) { _, _ in relayout(geo.size) }
-            .onChange(of: revision) { _, _ in relayout(geo.size) }
-            .onContinuousHover(coordinateSpace: .local) { phase in
-                switch phase {
-                case .active(let point): hovered = hit(point)
-                case .ended: hovered = nil
-                }
-            }
-            .onTapGesture(count: 2, coordinateSpace: .local) { point in
-                if let i = hit(point) { open(i) }
-            }
-            .onTapGesture(count: 1, coordinateSpace: .local) { point in
-                select(hit(point))
-            }
-            .contextMenu { menu }
+            Spacer()
         }
-        .background(Color.primary.opacity(0.04))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(L("Mappa dello spazio di %@", focus == tree.root ? L("tutto il disco") : tree[focus].name))
-        .accessibilityValue(tree[focus].children.prefix(8)
-            .map { "\(tree[$0].name), \(Format.diskBytes(tree[$0].size))" }.joined(separator: "; "))
+        .font(.callout)
+        .frame(height: 18)
     }
-
-    @ViewBuilder private var menu: some View {
-        if let i = hovered ?? selection, tree.nodes.indices.contains(i) {
-            let node = tree[i]
-            if node.isDirectory, !node.children.isEmpty {
-                Button(L("Apri")) { open(i) }
-            }
-            if let path = tree.path(of: i) {
-                Button(L("Mostra nel Finder")) { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
-                Button(L("Copia il percorso")) {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(path, forType: .string)
-                }
-            }
-        }
-    }
-
-    private func relayout(_ size: CGSize) {
-        let newKey = LayoutKey(focus: focus, size: size, revision: revision)
-        guard newKey != key, tree.nodes.indices.contains(focus) else { return }
-        key = newKey
-        var result: [Cell] = []
-        let bounds = CGRect(origin: .zero, size: size)
-        let top = tree[focus].children.filter { tree[$0].size > 0 }
-        let rects = Treemap.layout(top.map { Double(tree[$0].size) }, in: bounds)
-        for (node, rect) in zip(top, rects) where rect.width >= 1 && rect.height >= 1 {
-            result.append(Cell(node: node, rect: rect, depth: 1))
-            let n = tree[node]
-            guard n.isDirectory, !n.children.isEmpty, rect.width > 44, rect.height > 40 else { continue }
-            let inner = CGRect(x: rect.minX + 2, y: rect.minY + 17, width: rect.width - 4, height: rect.height - 19)
-            let kids = n.children.filter { tree[$0].size > 0 }
-            let innerRects = Treemap.layout(kids.map { Double(tree[$0].size) }, in: inner)
-            for (k, r) in zip(kids, innerRects) where r.width >= 2 && r.height >= 2 {
-                result.append(Cell(node: k, rect: r, depth: 2))
-            }
-        }
-        cells = result
-        report(result.count, size)
-    }
-
-    private func hit(_ point: CGPoint) -> Int? {
-        cells.last { $0.rect.contains(point) }?.node
-    }
-
-    private func draw(_ context: inout GraphicsContext, size: CGSize) {
-        for cell in cells {
-            let node = tree[cell.node]
-            let rect = cell.rect.insetBy(dx: 0.75, dy: 0.75)
-            guard rect.width > 0, rect.height > 0 else { continue }
-            let shape = Path(roundedRect: rect, cornerRadius: cell.depth == 1 ? 4 : 2)
-            let opacity: Double = node.isSynthetic ? 0.35 : (cell.depth == 1 ? 0.9 : 0.75)
-            context.fill(shape, with: .color(node.kind.color.opacity(opacity)))
-            if cell.depth == 2 {
-                context.stroke(shape, with: .color(.black.opacity(0.18)), lineWidth: 0.5)
-            }
-            if cell.depth == 1, rect.width > 64, rect.height > 16 {
-                var label = context
-                label.clip(to: Path(rect.insetBy(dx: 4, dy: 1)))
-                let ink = node.kind.ink
-                label.draw(Text(node.name).font(.caption.weight(.semibold)).foregroundColor(ink),
-                           at: CGPoint(x: rect.minX + 5, y: rect.minY + 2), anchor: .topLeading)
-                if rect.height > 34, !(node.isDirectory && !node.children.isEmpty && rect.height > 40) {
-                    label.draw(Text(Format.diskBytes(node.size)).font(.caption2).foregroundColor(ink.opacity(0.85)),
-                               at: CGPoint(x: rect.minX + 5, y: rect.minY + 17), anchor: .topLeading)
-                }
-            }
-        }
-        for (index, color, width) in [(hovered, Color.white.opacity(0.9), 1.5), (selection, Color.accentColor, 2.5)] {
-            guard let index, let cell = cells.last(where: { $0.node == index }) else { continue }
-            context.stroke(Path(roundedRect: cell.rect.insetBy(dx: 1, dy: 1), cornerRadius: 3), with: .color(color),
-                           lineWidth: width)
-        }
-    }
-}
-
-extension FileKind {
-    /// Colori distinti tra loro e lontani dalla scala del carico: qui il colore dice il tipo, non un allarme.
-    var color: Color {
-        switch self {
-        case .apps: Color(hue: 0.60, saturation: 0.62, brightness: 0.86)
-        case .documents: Color(hue: 0.49, saturation: 0.60, brightness: 0.72)
-        case .media: Color(hue: 0.80, saturation: 0.48, brightness: 0.82)
-        case .development: Color(hue: 0.07, saturation: 0.66, brightness: 0.90)
-        case .system: Color(white: 0.55)
-        case .caches: Color(hue: 0.13, saturation: 0.70, brightness: 0.95)
-        case .other: Color(hue: 0.34, saturation: 0.35, brightness: 0.68)
-        }
-    }
-
-    /// Il colore del testo sopra il rettangolo.
-    var ink: Color { self == .caches ? .black.opacity(0.8) : .white }
 }
 
 // MARK: - Debug

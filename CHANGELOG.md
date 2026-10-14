@@ -8,7 +8,8 @@ cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggi
 Gli attrezzi: quando il disco è pieno o il Mac rallenta, vedi perché e sistemi da qui.
 
 ### Novità
-- Attrezzi › Spazio: una mappa del disco come GrandPerspective, ogni rettangolo grande quanto lo spazio che occupa e colorato per tipo (app, documenti, foto e video, sviluppo, cache, sistema). Doppio clic per entrare in una cartella, barra del percorso per risalire.
+- Attrezzi › Spazio: una mappa del disco come GrandPerspective, con tutti i livelli insieme: ogni rettangolo è grande quanto lo spazio che occupa e colorato per tipo (app, documenti, foto e video, sviluppo, cache, sistema), le cartelle hanno il nome in testa. Zoom avanti e indietro, Indietro, livello su e giù, Apri, Quick Look (spazio), Mostra nel Finder, Cestino e Cerca, che evidenzia i risultati nella mappa.
+- Accanto alla mappa, le voci più grandi della cartella e i file più grandi lì sotto, con barre e percentuali; in alto una frase dice dove si concentra lo spazio.
 - Consigli per liberare spazio: cache delle app, progetti fermi (node_modules, .build, DerivedData), installer già usati, supporto dispositivi di Xcode, backup di iPhone, file grandi non aperti da 6 mesi, Cestino, allegati di Messaggi, libreria di Foto. Quello che togli va nel Cestino, sempre con conferma.
 - Attrezzi › App: le app che pesano in memoria o fanno lavorare la CPU, adesso, con Chiudi e Forza chiusura, e una frase su cosa conviene fare.
 - Mole dentro l'app: anteprima e pulizia con `mo clean`, manutenzione con `mo optimize`. Se Mole non c'è, si installa con Homebrew da un pulsante.
@@ -18,6 +19,7 @@ Gli attrezzi: quando il disco è pieno o il Mac rallenta, vedi perché e sistemi
 ### Miglioramenti
 - Firma con un'identità locale stabile, quando c'è: l'Accesso completo al disco dato agli attrezzi resta dopo gli aggiornamenti.
 - Gli attrezzi non lavorano finché non li apri; chiusa la finestra, la mappa se ne va dalla memoria.
+- Lettura del disco con getattrlistbulk, più veloce di una lettura file per file; la mappa si disegna una volta in un'immagine, così passare con il puntatore e cercare non costano nulla.
 
 ## 0.4.1 · 2026-10-13
 
