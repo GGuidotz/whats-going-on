@@ -3,6 +3,22 @@
 Formato: `## <versione> · <data>`, poi `### Novità`, `### Miglioramenti`, `### Correzioni`, una riga `- ` per
 cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggiornamenti (Sources/App/Changelog.swift).
 
+## 0.5.0 · 2026-10-14
+
+Gli attrezzi: quando il disco è pieno o il Mac rallenta, vedi perché e sistemi da qui.
+
+### Novità
+- Attrezzi › Spazio: una mappa del disco come GrandPerspective, ogni rettangolo grande quanto lo spazio che occupa e colorato per tipo (app, documenti, foto e video, sviluppo, cache, sistema). Doppio clic per entrare in una cartella, barra del percorso per risalire.
+- Consigli per liberare spazio: cache delle app, progetti fermi (node_modules, .build, DerivedData), installer già usati, supporto dispositivi di Xcode, backup di iPhone, file grandi non aperti da 6 mesi, Cestino, allegati di Messaggi, libreria di Foto. Quello che togli va nel Cestino, sempre con conferma.
+- Attrezzi › App: le app che pesano in memoria o fanno lavorare la CPU, adesso, con Chiudi e Forza chiusura, e una frase su cosa conviene fare.
+- Mole dentro l'app: anteprima e pulizia con `mo clean`, manutenzione con `mo optimize`. Se Mole non c'è, si installa con Homebrew da un pulsante.
+- Consigli di Apple Intelligence (sperimentale, da Impostazioni › Generale): il modello sul Mac legge un riassunto e propone cosa fare. Niente esce dal Mac.
+- Dagli avvisi agli attrezzi: la notifica "Disco quasi pieno" apre la mappa, quelle di memoria e CPU aprono le app. Gli attrezzi si aprono anche dal pannello (⌘T e i pulsanti nelle righe Disco, Memoria e CPU) e dal clic destro sulla voce nella barra.
+
+### Miglioramenti
+- Firma con un'identità locale stabile, quando c'è: l'Accesso completo al disco dato agli attrezzi resta dopo gli aggiornamenti.
+- Gli attrezzi non lavorano finché non li apri; chiusa la finestra, la mappa se ne va dalla memoria.
+
 ## 0.4.1 · 2026-10-13
 
 Più leggera e più semplice, con una guida per cominciare.

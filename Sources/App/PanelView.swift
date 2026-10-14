@@ -35,7 +35,7 @@ struct PanelView: View {
 
     var body: some View {
         ScrollView {
-            SystemPanel(monitor: model.monitor, advanced: prefs.advanced)
+            SystemPanel(monitor: model.monitor, advanced: prefs.advanced, tools: tools)
                 .padding(.horizontal, 12)
                 .padding(.top, 14)
                 .padding(.bottom, 8)
@@ -50,6 +50,13 @@ struct PanelView: View {
         .onPreferenceChange(FooterHeightKey.self) { if $0 > 0 { footerHeight = $0 } }
     }
 
+    /// Gli attrezzi si aprono in una finestra loro: il pannello si chiude.
+    private var tools: PanelTools {
+        PanelTools(space: { close(); model.showTools(.space) },
+                   memory: { close(); model.showTools(.apps, measure: .memory) },
+                   cpu: { close(); model.showTools(.apps, measure: .cpu) })
+    }
+
     private var footer: some View {
         GlassGroup(spacing: 8) {
             HStack(spacing: 8) {
@@ -62,6 +69,18 @@ struct PanelView: View {
                 .keyboardShortcut(",")
                 .glassButton()
                 .help(L("Impostazioni") + " (⌘,)")
+
+                Button {
+                    close()
+                    model.showTools(.space)
+                } label: {
+                    Label(L("Attrezzi"), systemImage: "wrench.and.screwdriver")
+                        .labelStyle(.iconOnly)
+                }
+                .keyboardShortcut("t")
+                .glassButton()
+                .help(L("Attrezzi: spazio, memoria e CPU") + " (⌘T)")
+                .accessibilityLabel(L("Attrezzi"))
 
                 if case .available(let version) = updater.state {
                     Button {

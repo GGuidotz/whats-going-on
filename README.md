@@ -38,6 +38,22 @@ agli avvisi accesi: le temperature, la lettura più pesante, solo dai sensori de
 delle app ogni 10. Con la barra nascosta non disegna nulla, a schermi spenti rallenta. Quanto pesa davvero lo vedi in
 Impostazioni › Generale. Al primo avvio una guida breve aiuta a scegliere cosa vedere e dove ricevere gli avvisi.
 
+## Attrezzi
+
+Su richiesta, in una finestra loro (⌘T dal pannello, i pulsanti nelle righe Disco, Memoria e CPU, il clic su un avviso):
+
+- **Spazio**: una mappa del disco come [GrandPerspective](https://grandperspective.sourceforge.net), ogni rettangolo
+  grande quanto lo spazio che occupa, colorato per tipo. A destra i consigli: cache delle app, progetti fermi da più di
+  un mese (node_modules, .build, DerivedData), installer già usati, backup di iPhone, file grandi non aperti da 6 mesi.
+  Quello che togli va nel Cestino, sempre con conferma. Con l'Accesso completo al disco la mappa vede anche Mail,
+  Messaggi, Safari e i backup.
+- **App**: chi pesa in memoria e chi fa lavorare la CPU, con Chiudi e Forza chiusura.
+- **Mole**: se hai [Mole](https://github.com/tw93/Mole) (`brew install mole`), anteprima e pulizia con `mo clean` e
+  manutenzione con `mo optimize`, dentro l'app. Mole è un programma a parte (GPL-3.0): lo chiamiamo, non lo includiamo.
+- **Apple Intelligence** (sperimentale): consigli scritti dal modello sul Mac, senza rete.
+
+Gli attrezzi non leggono nulla finché non li apri.
+
 ## Avvisi
 
 Con soglie che scegli tu: CPU alta, memoria sotto pressione, disco quasi pieno, chip caldo, un'app che consuma troppo.
@@ -88,15 +104,18 @@ Impostazioni › Feedback (o clic destro sulla voce nella barra › Invia un fee
 - I processi di sistema che girano come root non si leggono senza privilegi: nell'elenco delle app non compaiono.
 - Il consumo totale del Mac c'è solo dove l'SMC lo espone.
 - Niente ventole: sui Mac recenti non servono, e controllarle richiederebbe privilegi di amministratore.
-- L'app è firmata ad hoc e non notarizzata: niente account Apple Developer.
+- L'app non è notarizzata: niente account Apple Developer. Le versioni pubblicate sono firmate con un'identità locale
+  stabile, così macOS ricorda l'Accesso completo al disco tra un aggiornamento e l'altro.
+- La mappa non legge `/System` (il volume di sistema sigillato) né gli snapshot di Time Machine: quello spazio compare
+  come "Non visibile".
 
 ## Struttura
 
 | Cartella | Cosa contiene |
 |---|---|
-| `Sources/Core` | Il motore: lettori (CPU, memoria, rete, disco, batteria, processi, sensori, GPU), cronologia, frase, avvisi, scala del carico. Solo Foundation e IOKit |
+| `Sources/Core` | Il motore: lettori (CPU, memoria, rete, disco, batteria, processi, sensori, GPU), cronologia, frase, avvisi, scala del carico, lettura del disco e consigli degli attrezzi. Solo Foundation e IOKit |
 | `Sources/Island` | Le viste SwiftUI della pagina "Sistema": le usa il pannello e sono pensate per l'isola di Cocaine |
-| `Sources/App` | Avvio AppKit, voce colorata nella barra, pannello, impostazioni, avvisi, aggiornamenti, feedback |
+| `Sources/App` | Avvio AppKit, voce colorata nella barra, pannello, impostazioni, avvisi, aggiornamenti, feedback; in `Tools` gli attrezzi (mappa, app, Mole, Apple Intelligence) |
 | `Resources/Icon` | Icona Liquid Glass (`WhatsGoingOn.icon`, Icon Composer) e icona classica di ripiego |
 | `Localization` | Italiano (la chiave è il testo) e inglese |
 | `tools` | Controllo delle traduzioni, disegno dell'icona, controllo dell'icona compilata |

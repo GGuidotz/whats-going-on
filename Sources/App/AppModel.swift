@@ -14,12 +14,15 @@ final class AppModel: ObservableObject {
     let monitor = SystemMonitor()
     let delivery = AlertDelivery()
     let updater: Updater
+    /// Mole (Attrezzi): vive con l'app, così un comando avviato finisce anche se chiudi la finestra.
+    let mole = MoleRunner()
     @Published var settingsTab: SettingsTab = .general
     /// Apre il pannello della barra (lo imposta AppDelegate): la guida ci porta l'utente alla fine.
     var openPanel: (() -> Void)?
 
     private let settingsWindow = SettingsWindowController()
     private let onboardingWindow = OnboardingWindowController()
+    private let toolsWindow = ToolsWindowController()
     private var bag = Set<AnyCancellable>()
 
     var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0" }
@@ -70,6 +73,11 @@ final class AppModel: ObservableObject {
     /// La guida dei primi passi: da sola al primo avvio, poi da Impostazioni › Generale.
     func showOnboarding() {
         onboardingWindow.show(model: self)
+    }
+
+    /// Gli attrezzi: Spazio (cosa occupa il disco) o App (memoria e CPU). Dal pannello, dagli avvisi e dal menu.
+    func showTools(_ tab: ToolsTab, measure: AppsView.Measure? = nil) {
+        toolsWindow.show(model: self, tab: tab, measure: measure)
     }
 
     private func apply() {

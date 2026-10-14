@@ -90,6 +90,8 @@ struct ProcessUsage: Equatable, Identifiable {
     /// Percento di un core: 100 = un core pieno, come Monitoraggio Attività.
     var cpu: Double
     var memory: UInt64
+    /// L'app che contiene il processo (/Applications/Safari.app), per chiuderla; nil per i processi senza app.
+    var bundlePath: String? = nil
     var id: String { name }
 }
 
