@@ -58,10 +58,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 }
 
 /// Una finestra con il fondo traslucido del sistema (materiale delle barre laterali) e la barra del titolo trasparente:
-/// impostazioni e guida iniziale.
+/// impostazioni, guida iniziale e attrezzi (che si possono ridimensionare).
 @MainActor
 enum TranslucentWindow {
-    static func make(_ root: some View, size: CGSize) -> NSWindow {
+    static func make(_ root: some View, size: CGSize, resizable: Bool = false) -> NSWindow {
         let host = NSHostingController(rootView: root)
         let effect = NSVisualEffectView()
         effect.material = .sidebar
@@ -76,6 +76,7 @@ enum TranslucentWindow {
         effect.addSubview(host.view)
         let w = NSWindow(contentViewController: container)
         w.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+        if resizable { w.styleMask.insert(.resizable) }
         w.titlebarAppearsTransparent = true
         w.titleVisibility = .hidden
         w.isReleasedWhenClosed = false

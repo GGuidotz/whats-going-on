@@ -25,6 +25,8 @@ struct SamplingNeeds: Equatable {
     var power = false
     /// Modalità avanzata: a pannello aperto anche l'elenco di tutti i sensori.
     var allSensors = false
+    /// L'attrezzo "App" è aperto: l'elenco delle app a ogni lettura, non ogni 10 s.
+    var liveProcesses = false
 }
 
 /// Tutti i lettori. Usato solo dalla coda del campionatore.
@@ -78,7 +80,8 @@ final class Sampler: @unchecked Sendable {
         }
 
         if needs.gpu { s.gpu = gpu.read() }
-        s.processes = (panel || due("processes", every: 10, now: now)) ? processes.read() : last.processes
+        s.processes = (panel || needs.liveProcesses || due("processes", every: 10, now: now))
+            ? processes.read() : last.processes
         s.ownUsage = own.read()
         last = s
         return s

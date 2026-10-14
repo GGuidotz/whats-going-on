@@ -39,6 +39,24 @@ default; the app list every 10. With the menu bar hidden it draws nothing, and w
 can see how much it really weighs in Settings › General. On first launch a short guide helps you pick what to show and
 where alerts go.
 
+## Tools
+
+On demand, in their own window (⌘T from the panel, the buttons in the Disk, Memory and CPU rows, or a click on an
+alert):
+
+- **Space**: a map of your disk like [GrandPerspective](https://grandperspective.sourceforge.net), each rectangle as big
+  as the space it takes, colored by kind. On the right, tips: app caches, projects idle for over a month (node_modules,
+  .build, DerivedData), installers already used, iPhone backups, large files not opened in 6 months. What you remove
+  goes to the Trash, always after a confirmation. With Full Disk Access the map also sees Mail, Messages, Safari and
+  backups.
+- **Apps**: what's heavy on memory and what keeps the CPU busy, with Quit and Force Quit.
+- **Mole**: if you have [Mole](https://github.com/tw93/Mole) (`brew install mole`), preview and clean with `mo clean`
+  and maintenance with `mo optimize`, inside the app. Mole is a separate program (GPL-3.0): we call it, we don't bundle
+  it.
+- **Apple Intelligence** (experimental): tips written by the model on your Mac, offline.
+
+The tools read nothing until you open them.
+
 ## Alerts
 
 With thresholds you choose: high CPU, memory pressure, disk almost full, hot chip, an app using too much. An alert fires
@@ -89,7 +107,10 @@ Settings › Feedback (or right-click the menu bar item › Send Feedback):
 - System processes running as root can't be read without privileges, so they don't appear among the apps.
 - Whole-Mac power is only available where the SMC exposes it.
 - No fans: recent Macs don't need it, and controlling them would require administrator privileges.
-- The app is ad-hoc signed and not notarized: no Apple Developer account.
+- The app isn't notarized: no Apple Developer account. Published versions are signed with a stable local identity, so
+  macOS remembers Full Disk Access across updates.
+- The map doesn't read `/System` (the sealed system volume) or Time Machine snapshots: that space shows up as "Not
+  visible".
 
 ## License
 

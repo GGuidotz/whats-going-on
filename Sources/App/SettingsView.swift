@@ -55,6 +55,7 @@ private struct GeneralSettings: View {
     @ObservedObject var monitor: SystemMonitor
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var loginError: String?
+    @State private var fullDiskAccess = FullDiskAccess.granted
 
     var body: some View {
         Form {
@@ -84,6 +85,24 @@ private struct GeneralSettings: View {
             } footer: {
                 Footnote(L("Aggiunge la GPU, il carico di ogni core, tutti i sensori di temperatura e più app nei dettagli."))
             }
+
+            Section {
+                LabeledContent(L("Accesso completo al disco")) {
+                    if fullDiskAccess {
+                        Label(L("Concesso"), systemImage: "checkmark.circle.fill").foregroundStyle(Palette.calm)
+                    } else {
+                        Button(L("Apri Impostazioni")) { FullDiskAccess.openSettings() }
+                    }
+                }
+                Toggle(L("Consigli di Apple Intelligence (sperimentale)"), isOn: $prefs.intelligence)
+                Button(L("Apri gli attrezzi")) { model.showTools(.space) }
+            } header: {
+                Text(L("Attrezzi"))
+            } footer: {
+                Footnote(L("Gli attrezzi (cosa occupa spazio, memoria e CPU, Mole) lavorano solo quando li apri. L'accesso completo al disco serve a vedere Mail, Messaggi, Safari e i backup nella mappa: in Privacy e sicurezza aggiungi What's Going On con +.")
+                         + (prefs.intelligence ? " " + (AdviceModel.unavailableReason ?? L("Apple Intelligence è pronta.")) : ""))
+            }
+            .onAppear { fullDiskAccess = FullDiskAccess.granted }
 
             Section {
                 LabeledContent(L("Consumo di What's Going On")) {

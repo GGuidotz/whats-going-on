@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidFinishLaunching(_ notification: Notification) {
         let model = AppModel.shared
         UNUserNotificationCenter.current().delegate = self
+        AlertActions.register()
         NSApp.mainMenu = MainMenu.make()
         model.prefs.$language.dropFirst().receive(on: RunLoop.main)
             .sink { _ in NSApp.mainMenu = MainMenu.make() }
@@ -54,6 +55,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                             withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .sound, .list])
+    }
+
+    /// Clic sulla notifica di un avviso o sul suo pulsante: si apre l'attrezzo che aiuta.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                            withCompletionHandler completionHandler: @escaping () -> Void) {
+        let id = response.notification.request.identifier
+        let action = response.actionIdentifier
+        if action == AlertActions.open || action == UNNotificationDefaultActionIdentifier {
+            DispatchQueue.main.async { MainActor.assumeIsolated { AlertActions.handle(id) } }
+        }
+        completionHandler()
     }
 }
 

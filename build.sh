@@ -5,7 +5,8 @@
 #   ./build.sh --install    e la copia in /Applications (chiude la copia aperta) e la apre
 #   ./build.sh --dmg        e crea dist/WhatsGoingOn-<versione>.dmg
 #   WGO_ICON=classic ./build.sh …   usa l'icona classica anche se c'è Xcode
-# Firma ad hoc: l'app non chiede permessi di privacy, quindi non serve un'identità di firma.
+# Firma: con l'identità locale di Nod (~/.nod-signing, ./make-signing-identity.sh in GGuidotz/nod) se c'è, così
+# l'Accesso completo al disco dato agli Attrezzi resta da un aggiornamento all'altro; altrimenti ad hoc (solo prove).
 set -euo pipefail
 cd "${0:A:h}"
 
@@ -41,9 +42,16 @@ cp -R Localization/*.lproj "$APP/Contents/Resources/"
 cp CHANGELOG.md "$APP/Contents/Resources/CHANGELOG.md"   # Impostazioni › Aggiornamenti › Novità di questa versione
 
 SOURCES=(Sources/**/*.swift)
+# Apple Intelligence (FoundationModels, macOS 26): collegato "debole", così l'app parte anche su macOS 14 e 15.
+LINK=()
+SDK=$(xcrun --show-sdk-path 2>/dev/null || true)
+if [ -n "$SDK" ] && [ -d "$SDK/System/Library/Frameworks/FoundationModels.framework" ]; then
+  LINK=(-Xlinker -weak_framework -Xlinker FoundationModels)
+fi
 for arch in arm64 x86_64; do
   mkdir -p "$BUILD/$arch"
-  swiftc -O -swift-version 5 -parse-as-library -target "$arch-apple-macos14.0" "${SOURCES[@]}" -o "$BUILD/$arch/$EXE"
+  swiftc -O -swift-version 5 -parse-as-library -target "$arch-apple-macos14.0" "${SOURCES[@]}" "${LINK[@]}" \
+    -o "$BUILD/$arch/$EXE"
 done
 lipo -create "$BUILD/arm64/$EXE" "$BUILD/x86_64/$EXE" -output "$APP/Contents/MacOS/$EXE"
 
@@ -105,9 +113,18 @@ plist_set WGOIconTier "$ICON_TIER"
 [ "$MODE" = dmg ] || plist_set WGOSourcePath "$PWD"
 plutil -lint "$PLIST" >/dev/null
 xattr -cr "$APP"
-codesign --force --sign - "$APP"
+KC="$HOME/.nod-signing/nod-signing.keychain"
+if [ -f "$KC" ]; then
+  SIGNING=local
+  security unlock-keychain -p nod "$KC"
+  codesign --force --keychain "$KC" --sign "Nod Local Signing" "$APP"
+else
+  SIGNING=adhoc
+  codesign --force --sign - "$APP"
+  echo "Attenzione: firma ad hoc. A ogni build macOS dimentica l'Accesso completo al disco (vedi make-signing-identity.sh di Nod)."
+fi
 codesign --verify --strict "$APP"
-echo "Pronto: $APP ($VERSION, build $BUILD_NUMBER, commit $COMMIT, icona $ICON_TIER${ICON_CHECK:+: $ICON_CHECK})"
+echo "Pronto: $APP ($VERSION, build $BUILD_NUMBER, commit $COMMIT, firma $SIGNING, icona $ICON_TIER${ICON_CHECK:+: $ICON_CHECK})"
 
 case "$MODE" in
   install)

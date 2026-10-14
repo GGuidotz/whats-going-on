@@ -31,9 +31,17 @@ struct SummaryHeader: View {
     }
 }
 
+/// Gli attrezzi che chi ospita la pagina sa aprire (l'app: la finestra Attrezzi). Senza, i pulsanti non compaiono.
+struct PanelTools {
+    var space: () -> Void
+    var memory: () -> Void
+    var cpu: () -> Void
+}
+
 struct SystemPanel: View {
     @ObservedObject var monitor: SystemMonitor
     var advanced: Bool
+    var tools: PanelTools? = nil
 
     @State private var expanded: Set<String> = []
 
@@ -80,6 +88,7 @@ struct SystemPanel: View {
                 DetailHeading(text: L("App più attive"))
                 ProcessList(processes: top, measure: .cpu)
             }
+            if let tools { ToolButton(title: L("Cosa sta lavorando…"), symbol: "cpu", action: tools.cpu) }
         }
     }
 
@@ -104,6 +113,7 @@ struct SystemPanel: View {
                 DetailHeading(text: L("App che usano più memoria"))
                 ProcessList(processes: top, measure: .memory)
             }
+            if let tools { ToolButton(title: L("Libera memoria…"), symbol: "memorychip", action: tools.memory) }
         }
     }
 
@@ -178,6 +188,7 @@ struct SystemPanel: View {
                 DetailLine(label: L("Usato"), value: Format.diskBytes(d.total - d.free))
                 DetailLine(label: L("Libero"), value: Format.percent(d.freeFraction))
             }
+            if let tools { ToolButton(title: L("Cosa occupa spazio…"), symbol: "square.split.2x2", action: tools.space) }
         }
     }
 
@@ -221,5 +232,21 @@ struct SystemPanel: View {
         return b.isCharging
             ? L("%@ · piena tra %@", state, Format.minutes(minutes))
             : L("%@ · ancora %@", state, Format.minutes(minutes))
+    }
+}
+
+/// Il pulsante che apre un attrezzo, in fondo ai dettagli di una riga.
+private struct ToolButton: View {
+    var title: String
+    var symbol: String
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+        }
+        .glassButton()
+        .controlSize(.small)
+        .padding(.top, 6)
     }
 }

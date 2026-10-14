@@ -139,6 +139,42 @@ final class AlertDelivery: ObservableObject {
         content.title = title
         content.body = body
         content.sound = .default
+        content.categoryIdentifier = id   // il pulsante dell'attrezzo giusto (AlertActions)
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+    }
+}
+
+/// I pulsanti delle notifiche: dall'avviso all'attrezzo che aiuta. Disco quasi pieno → cosa occupa spazio; memoria →
+/// le app che pesano; CPU, app che consuma, chip caldo → cosa sta lavorando. Anche il clic sulla notifica apre lì.
+enum AlertActions {
+    static let open = "open"
+
+    @MainActor
+    static func register() {
+        let categories = AlertKind.allCases.map { kind in
+            UNNotificationCategory(identifier: "wgo.\(kind.rawValue)",
+                                   actions: [UNNotificationAction(identifier: open, title: title(kind), options: [.foreground])],
+                                   intentIdentifiers: [])
+        }
+        UNUserNotificationCenter.current().setNotificationCategories(Set(categories))
+    }
+
+    private static func title(_ kind: AlertKind) -> String {
+        switch kind {
+        case .disk: L("Vedi cosa occupa spazio")
+        case .memory: L("Vedi le app che pesano")
+        case .cpu, .process, .temperature: L("Vedi cosa sta lavorando")
+        }
+    }
+
+    /// L'attrezzo per una notifica (dal suo identificativo "wgo.<tipo>"), nil per le altre.
+    @MainActor
+    static func handle(_ identifier: String) {
+        guard identifier.hasPrefix("wgo."), let kind = AlertKind(rawValue: String(identifier.dropFirst(4))) else { return }
+        switch kind {
+        case .disk: AppModel.shared.showTools(.space)
+        case .memory: AppModel.shared.showTools(.apps, measure: .memory)
+        case .cpu, .process, .temperature: AppModel.shared.showTools(.apps, measure: .cpu)
+        }
     }
 }

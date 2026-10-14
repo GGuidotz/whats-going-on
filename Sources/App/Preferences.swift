@@ -76,6 +76,8 @@ final class Preferences: ObservableObject {
     /// La guida dei primi passi è già stata vista.
     @Published var onboardingDone: Bool { didSet { defaults.set(onboardingDone, forKey: "onboardingDone") } }
     @Published var advanced: Bool { didSet { defaults.set(advanced, forKey: "advanced") } }
+    /// Consigli di Apple Intelligence negli Attrezzi (sperimentale).
+    @Published var intelligence: Bool { didSet { defaults.set(intelligence, forKey: "intelligence") } }
     @Published var language: AppLanguage {
         didSet { Localization.language = language; save(language, "language") }
     }
@@ -101,6 +103,7 @@ final class Preferences: ObservableObject {
         temperatureInterval = UserDefaults.standard.object(forKey: "temperatureInterval") as? Double ?? 30
         onboardingDone = UserDefaults.standard.bool(forKey: "onboardingDone")
         advanced = UserDefaults.standard.bool(forKey: "advanced")
+        intelligence = UserDefaults.standard.bool(forKey: "intelligence")
         language = load("language", AppLanguage.system)
         alerts = load("alerts", AlertSettings())
         alertDestination = load("alertDestination", AlertDestination.cocaine)

@@ -39,7 +39,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 }
 
 struct OnboardingView: View {
-    static let size = CGSize(width: 520, height: 580)
+    static let size = CGSize(width: 520, height: 610)
 
     var model: AppModel
     @ObservedObject var prefs: Preferences
@@ -150,6 +150,7 @@ struct OnboardingView: View {
             Tip(symbol: "cursorarrow.click", text: L("Clic sulla voce nella barra: il pannello, con la frase e i dettagli. Clic su una riga per aprirla."))
             Tip(symbol: "cursorarrow.click.2", text: L("Clic destro (o ctrl-clic): impostazioni, novità, feedback, esci."))
             Tip(symbol: "command", text: L("Nel pannello, ⌘, apre le impostazioni e ⌘Q chiude l'app."))
+            Tip(symbol: "wrench.and.screwdriver", text: L("Disco pieno o Mac lento? Gli attrezzi mostrano cosa occupa spazio e quali app pesano: dal pannello, da un avviso o con ⌘T."))
             Tip(symbol: "leaf", text: L("A pannello chiuso legge solo ciò che serve: in Impostazioni › Generale vedi quanto pesa."))
             Toggle(L("Apri all'accesso"), isOn: Binding(
                 get: { LaunchAtLogin.isEnabled },
