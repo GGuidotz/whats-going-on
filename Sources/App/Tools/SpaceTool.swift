@@ -24,6 +24,9 @@ final class SpaceModel: ObservableObject {
     /// Il rettangolo sotto il puntatore (o la riga dell'elenco): a parte, perché cambia a ogni movimento.
     let pointer = MapPointer()
     @Published var showInspector = true
+    @Published var detail = MapDetail(rawValue: UserDefaults.standard.object(forKey: "mapDetail") as? Int ?? 1) ?? .medium {
+        didSet { UserDefaults.standard.set(detail.rawValue, forKey: "mapDetail") }
+    }
     /// Cerca: i nodi il cui nome contiene il testo, dal più grande.
     @Published var query = "" {
         didSet { if query != oldValue { scheduleSearch() } }
@@ -50,6 +53,12 @@ final class SpaceModel: ObservableObject {
     let home = NSHomeDirectory()
 
     var tree: DiskTree? { result?.tree }
+
+    /// L'Accesso completo al disco si può dare con la finestra aperta: si ricontrolla quando torni all'app.
+    func refreshAccess() {
+        let granted = FullDiskAccess.granted
+        if granted != fullDiskAccess { fullDiskAccess = granted }
+    }
 
     var volumeName: String {
         (try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeLocalizedNameKey]).volumeLocalizedName)
@@ -448,6 +457,10 @@ struct SpaceView: View {
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
+        .onAppear { space.refreshAccess() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            space.refreshAccess()
+        }
     }
 
     private var inspector: some View {
@@ -778,6 +791,15 @@ private struct SelectionCard: View {
                 if node.isDirectory { DetailLine(label: L("Elementi"), value: Format.number(Double(node.items), digits: 0)) }
                 if let date = node.modified {
                     DetailLine(label: L("Modificato"), value: date.formatted(.dateTime.day().month().year()))
+                }
+                if let path, let hint = SpaceAdvisor.hint(for: path, home: space.home) {
+                    Text(hint.prefix(1).uppercased() + hint.dropFirst() + ".")
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if node.isSynthetic, node.items == 0 {
+                    Text(L("Spazio che nessuna app può leggere: lo gestisce macOS."))
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if let path {
                     Text(path)

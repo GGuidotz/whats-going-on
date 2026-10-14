@@ -144,7 +144,7 @@ enum SpaceAdvisor {
         if let hidden = tree[tree.root].children.first(where: { tree[$0].isSynthetic && tree[$0].kind == .system }),
            tree[hidden].size >= 15_000_000_000 {
             tips.append(SpaceTip(id: "hidden", symbol: "eye.slash", title: L("Spazio non visibile"),
-                                 detail: L("%@ tra file di sistema, snapshot locali di Time Machine e cartelle protette. macOS libera da solo gli snapshot quando serve spazio; con Accesso completo al disco la lettura ne vede di più.",
+                                 detail: L("%@ che nessuna app può leggere: il sistema macOS, la memoria virtuale, i file di avvio e gli snapshot locali di Time Machine. Nella mappa trovi le parti; macOS libera da solo gli snapshot quando serve spazio.",
                                            Format.diskBytes(tree[hidden].size)),
                                  bytes: tree[hidden].size, items: [], action: .info))
         }
@@ -162,29 +162,115 @@ enum SpaceAdvisor {
 
     /// Un riassunto breve per Apple Intelligence: spazio, cartelle più grandi, consigli già trovati. Il modello sul
     /// dispositivo legge poche migliaia di parole, quindi solo l'essenziale. Nessun dato lascia il Mac.
-    static func summary(_ result: DiskScanResult, tips: [SpaceTip], home: String = NSHomeDirectory()) -> String {
+    /// Per Apple Intelligence: dove si concentra lo spazio, con una nota su cos'è ogni voce, e cosa è già proposto.
+    /// Breve (il modello sul Mac legge poche migliaia di parole) ma con ciò che serve a consigli precisi.
+    static func summary(_ result: DiskScanResult, tips: [SpaceTip], home: String = NSHomeDirectory(),
+                        now: Date = Date()) -> String {
         let tree = result.tree
-        var lines = [L("Disco: %@ in tutto, %@ usati.", Format.diskBytes(result.total), Format.diskBytes(result.used))]
-        lines.append(L("Cartelle più grandi:"))
-        var biggest: [(String, Int64)] = []
-        var queue = [(tree.root, 0)]
-        var next = 0
-        while next < queue.count {
-            let (i, depth) = queue[next]
-            next += 1
-            for c in tree[i].children where tree[c].isDirectory && !tree[c].isSynthetic {
-                if let p = tree.path(of: c) { biggest.append((p, tree[c].size)) }
-                if depth < 4 { queue.append((c, depth + 1)) }
+        func shown(_ path: String) -> String { path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path }
+        func months(_ date: Date?) -> Int {
+            date.map { Int(now.timeIntervalSince($0) / (30 * 86_400)) } ?? 0
+        }
+        func age(_ date: Date?) -> String {
+            months(date) >= 2 ? L(", modificato %d mesi fa", months(date)) : ""
+        }
+        let free = max(0, result.total - result.used)
+        var lines = [L("Disco: %@ in tutto, %@ liberi (%@).", Format.diskBytes(result.total), Format.diskBytes(free),
+                       Format.percent(result.total > 0 ? Double(free) / Double(result.total) : 0))]
+
+        // Punti caldi: le voci grandi al livello che conta. Una cartella si salta se un solo figlio ne tiene il 60%:
+        // si racconta il figlio, non tutta la catena.
+        let threshold = max(Int64(500_000_000), result.used / 100)
+        var spots: [Int] = []
+        var stack = [(tree.root, 0)]
+        while let item = stack.popLast() {
+            let (i, depth) = item
+            let node = tree[i]
+            guard depth < 10 else { continue }
+            for c in node.children where tree[c].size >= threshold {
+                let child = tree[c]
+                if child.isSynthetic {
+                    // "Non visibile": si raccontano le sue parti; gli "Altri n elementi" no.
+                    if child.items == 0 {
+                        if child.children.isEmpty { spots.append(c) }
+                        spots += child.children.filter { tree[$0].size >= threshold }
+                    }
+                    continue
+                }
+                let dominant = child.children.first.map { Double(tree[$0].size) >= Double(child.size) * 0.6 } ?? false
+                if !dominant || !child.isDirectory { spots.append(c) }
+                if child.isDirectory { stack.append((c, depth + 1)) }
             }
         }
-        for (path, size) in biggest.sorted(by: { $0.1 > $1.1 }).prefix(18) {
-            let shown = path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
-            lines.append("- \(shown): \(Format.diskBytes(size))")
+        spots.sort { tree[$0].size > tree[$1].size }
+        lines.append(L("Dove va lo spazio (voce: dimensione, tipo, nota):"))
+        for i in spots.prefix(14) {
+            let node = tree[i]
+            let path = tree.path(of: i)
+            let name = path.map(shown) ?? node.name
+            var line = "- \(name): \(Format.diskBytes(node.size)), \(node.kind.title.lowercased())\(age(node.modified))"
+            if let note = path.flatMap({ hint(for: $0, home: home) }) ?? (node.isSynthetic ? L("spazio di sistema, non si tocca") : nil) {
+                line += ". " + note
+            }
+            lines.append(line)
+        }
+
+        let f = result.findings
+        if !f.bigFiles.isEmpty {
+            lines.append(L("File grandi nella cartella utente:"))
+            for item in f.bigFiles.prefix(5) {
+                let used = months(item.date) >= 2 ? L(", usato l'ultima volta %d mesi fa", months(item.date)) : ""
+                lines.append("- \(shown(item.path)): \(Format.diskBytes(item.size))\(used)")
+            }
         }
         if !tips.isEmpty {
-            lines.append(L("Già proposti:"))
+            lines.append(L("Consigli già mostrati all'utente (non ripeterli):"))
             for tip in tips.prefix(8) { lines.append("- \(tip.title): \(Format.diskBytes(tip.bytes))") }
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// Cos'è una cartella o un file noto e come si riduce, in una frase. nil se non lo sappiamo.
+    static func hint(for path: String, home: String = NSHomeDirectory()) -> String? {
+        let p = path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+        let ext = (p as NSString).pathExtension.lowercased()
+        func has(_ part: String) -> Bool { p.localizedCaseInsensitiveContains(part) }
+        if p == "~/.Trash" { return L("il Cestino: si libera svuotandolo") }
+        if has("/Library/Caches") || p.hasSuffix("/Caches") { return L("cache: si ricrea da sola, si può togliere") }
+        if has(".photoslibrary") { return L("libreria di Foto: si riduce con Foto di iCloud e \"Ottimizza spazio del Mac\", non a mano") }
+        if has("~/Library/Mail") { return L("posta di Mail scaricata: si riduce da Mail, non a mano") }
+        if has("~/Library/Messages") { return L("Messaggi e allegati: si riducono da Messaggi › Impostazioni (tieni i messaggi per 1 anno)") }
+        if has("CoreSpotlight") || has("Spotlight") { return L("indice di Spotlight: si rigenera da solo, non si cancella a mano") }
+        if has("/Developer/Xcode/DerivedData") { return L("compilazioni di Xcode: si ricreano, si possono togliere") }
+        if has("/Developer/CoreSimulator") { return L("simulatori di Xcode: si riducono con xcrun simctl delete unavailable") }
+        if has("DeviceSupport") { return L("supporto dispositivi di Xcode: le versioni vecchie si possono togliere") }
+        if has("com.docker") || ext == "raw" && has("docker") { return L("disco di Docker: si riduce con docker system prune") }
+        if has("vm_bundles") || ["img", "vmdk", "qcow2", "vdi", "utm", "pvm", "hdd"].contains(ext) {
+            return L("immagine di una macchina virtuale: si toglie dall'app che l'ha creata, se non la usi")
+        }
+        if ["gguf", "safetensors", "mlmodel", "mlpackage", "ckpt", "bin"].contains(ext) && node(isModel: p) {
+            return L("modello di intelligenza artificiale scaricato: si toglie dall'app che lo usa")
+        }
+        if has("/MobileSync/Backup") { return L("backup di iPhone o iPad: quelli vecchi si tolgono da Finder › dispositivo › Gestisci backup") }
+        if has("iPhone Software Updates") || has("iPad Software Updates") { return L("aggiornamenti di iPhone scaricati: si possono togliere") }
+        if has("UBF8T346G9.Office") || has("Outlook") { return L("dati di Microsoft Outlook e Office: si riducono dalle impostazioni di Outlook") }
+        if has("minecraft") { return L("mondi e dati di Minecraft") }
+        if has("node_modules") { return L("dipendenze di un progetto: si ricreano con npm install") }
+        if p.hasPrefix("/opt/homebrew") || p.hasPrefix("/usr/local/Cellar") { return L("Homebrew: brew cleanup toglie le versioni vecchie") }
+        if p.hasPrefix("/private/var/vm") { return L("memoria virtuale di macOS (sleepimage, swap): la gestisce il sistema") }
+        if p.hasPrefix("/Applications/") && ext == "app" { return L("app installata: si toglie se non la usi") }
+        if p == "~/Downloads" || p.hasPrefix("~/Downloads/") { return L("Download: spesso installer e file già usati") }
+        if ["mkv", "mp4", "mov", "avi", "m4v"].contains(ext) { return L("video: si sposta su un disco esterno o si toglie se già visto") }
+        if ["dmg", "pkg", "xip", "iso"].contains(ext) { return L("installer: dopo l'installazione non serve più") }
+        if has("~/Library/Containers/") || has("~/Library/Group Containers/") { return L("dati di un'app: si riducono dall'app stessa") }
+        if has("~/Library/Application Support/") { return L("dati di un'app: si riducono dall'app stessa, o togliendo l'app") }
+        return nil
+    }
+
+    /// I .bin sono troppo comuni: contano come modelli solo dentro cartelle che lo dicono.
+    private static func node(isModel path: String) -> Bool {
+        let ext = (path as NSString).pathExtension.lowercased()
+        if ext != "bin" { return true }
+        return path.localizedCaseInsensitiveContains("model") || path.localizedCaseInsensitiveContains("huggingface")
     }
 }

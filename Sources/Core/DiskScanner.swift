@@ -234,6 +234,8 @@ final class DiskScanner: @unchecked Sendable {
         var latest: TimeInterval = 0
         /// Cartelle rigenerabili trovate qui dentro: la data la decide l'attività di questa cartella.
         var pendingRebuildable: [Int] = []
+        /// Sul volume di sistema (/usr, /bin…): serve a calcolare quanto del sistema resta fuori dalla lettura.
+        var onSystemVolume = false
 
         init(name: String, path: String, level: Int, context: FileKind?, rebuildable: Bool, insideRebuildable: Bool,
              inHome: Bool, modified: Date?) {
@@ -268,10 +270,15 @@ final class DiskScanner: @unchecked Sendable {
         let minKeep = max(Int64(1_000_000), volume.used / 200_000)
 
         var allowedDevices = Set<Int32>()
+        var rootDevice: Int32 = -1
         for path in [root, "/System/Volumes/Data"] {
             var st = stat()
-            if lstat(path, &st) == 0 { allowedDevices.insert(st.st_dev) }
+            if lstat(path, &st) == 0 {
+                allowedDevices.insert(st.st_dev)
+                if path == root { rootDevice = st.st_dev }
+            }
         }
+        var systemRead: Int64 = 0
         // /System è il volume di sistema sigillato: non si tocca e non si può togliere nulla, quindi non si legge (la
         // lettura è più veloce) e finisce in "Non visibile" con gli snapshot.
         let skipped: Set<String> = ["/System", "/Volumes", "/dev", "/net", "/home", "/Network", "/.vol",
@@ -351,12 +358,16 @@ final class DiskScanner: @unchecked Sendable {
                 return
             }
             let fd = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
-            if fd >= 0, level > 0 {
+            var device: Int32 = -1
+            if fd >= 0 {
                 var st = stat()
-                if fstat(fd, &st) == 0, !allowedDevices.contains(st.st_dev) {
-                    Darwin.close(fd)
-                    stats.otherDevice += 1
-                    return
+                if fstat(fd, &st) == 0 {
+                    device = st.st_dev
+                    if level > 0, !allowedDevices.contains(device) {
+                        Darwin.close(fd)
+                        stats.otherDevice += 1
+                        return
+                    }
                 }
             }
             let rebuildable = !(parent?.insideRebuildable ?? false) && Self.isRebuildable(name, parent: parent?.name)
@@ -366,6 +377,7 @@ final class DiskScanner: @unchecked Sendable {
                               insideRebuildable: rebuildable || (parent?.insideRebuildable ?? false),
                               inHome: path.hasPrefix(home + "/"),
                               modified: modified > 0 ? Date(timeIntervalSince1970: modified) : nil)
+            frame.onSystemVolume = device >= 0 ? device == rootDevice : (parent?.onSystemVolume ?? false)
             stats.directories += 1
             if level <= 3 { state.current = path }
             guard fd >= 0 else {
@@ -442,6 +454,7 @@ final class DiskScanner: @unchecked Sendable {
                         continue
                     }
                     stats.files += 1
+                    if frame.onSystemVolume { systemRead += size }
                     state.items += 1
                     state.bytes += size
                     frame.size += size
@@ -509,14 +522,38 @@ final class DiskScanner: @unchecked Sendable {
         }
         report(force: true)
 
-        // Ciò che la lettura non vede: snapshot, volumi di sistema, cartelle protette.
+        // Ciò che la lettura non vede, diviso dove si può misurare: il resto del volume di sistema, gli altri volumi
+        // dello stesso disco (memoria virtuale, avvio, aggiornamenti) e, quello che avanza, snapshot e cartelle protette.
         let hidden = volume.used - nodes[rootIndex].size
         if hidden > minKeep {
-            nodes.append(DiskNode(name: L("Non visibile: sistema, snapshot e cartelle protette"), size: hidden,
-                                  kind: .system, isDirectory: false, isSynthetic: true, items: 0, modified: nil,
+            var pieces: [(String, Int64)] = []
+            if let systemUsed = Self.volumeSpaceUsed(root) {
+                pieces.append((L("macOS (volume di sistema)"), systemUsed - systemRead))
+            }
+            for v in Self.otherVolumes() { pieces.append((v.name, v.used)) }
+            var left = hidden
+            var parts: [Int] = []
+            for (name, size) in pieces.sorted(by: { $0.1 > $1.1 }) where size >= minKeep && left > 0 {
+                let shown = min(size, left)
+                nodes.append(DiskNode(name: name, size: shown, kind: .system, isDirectory: false, isSynthetic: true,
+                                      items: 0, modified: nil))
+                parts.append(nodes.count - 1)
+                left -= shown
+            }
+            if left >= minKeep {
+                nodes.append(DiskNode(name: L("Snapshot locali, cartelle protette e spazio riservato"), size: left,
+                                      kind: .system, isDirectory: false, isSynthetic: true, items: 0, modified: nil))
+                parts.append(nodes.count - 1)
+            }
+            nodes.append(DiskNode(name: L("Non visibile alla lettura"), size: hidden, kind: .system,
+                                  isDirectory: !parts.isEmpty, isSynthetic: true, items: 0, modified: nil,
                                   parent: rootIndex))
+            let hiddenIndex = nodes.count - 1
+            parts.sort { nodes[$0].size > nodes[$1].size }
+            for i in parts { nodes[i].parent = hiddenIndex }
+            nodes[hiddenIndex].children = parts
             var children = nodes[rootIndex].children
-            children.append(nodes.count - 1)
+            children.append(hiddenIndex)
             children.sort { nodes[$0].size > nodes[$1].size }
             nodes[rootIndex].children = children
             nodes[rootIndex].size += hidden
@@ -644,6 +681,68 @@ final class DiskScanner: @unchecked Sendable {
     }
 
     // MARK: - Volume
+
+    /// Lo spazio usato da un solo volume APFS (i volumi di un disco condividono lo spazio libero).
+    static func volumeSpaceUsed(_ path: String) -> Int64? {
+        // ATTR_VOL_INFO | ATTR_VOL_SPACEUSED
+        var request = attrlist(bitmapcount: 5, reserved: 0, commonattr: 0, volattr: 0x8000_0000 | 0x0080_0000,
+                               dirattr: 0, fileattr: 0, forkattr: 0)
+        var buffer = [UInt8](repeating: 0, count: 64)
+        let status = buffer.withUnsafeMutableBytes { raw in
+            getattrlist(path, &request, raw.baseAddress, raw.count, 0)
+        }
+        guard status == 0 else { return nil }
+        let used = buffer.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: Int64.self) }
+        return used > 0 ? used : nil
+    }
+
+    /// Gli altri volumi del disco di avvio (memoria virtuale, Preboot, aggiornamenti…), senza sistema e dati.
+    static func otherVolumes() -> [(name: String, used: Int64)] {
+        var list: UnsafeMutablePointer<statfs>?
+        let count = Int(getmntinfo(&list, MNT_NOWAIT))
+        guard count > 0, let list else { return [] }
+        var mounts: [(from: String, on: String)] = []
+        for i in 0..<count {
+            let fs = list[i]
+            let from = withUnsafeBytes(of: fs.f_mntfromname) { raw in String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self) }
+            let on = withUnsafeBytes(of: fs.f_mntonname) { raw in String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self) }
+            mounts.append((from, on))
+        }
+        /// "/dev/disk3s1s1" → ("disk3", "disk3s1"): il contenitore e il volume (senza lo snapshot).
+        func ids(_ from: String) -> (container: String, volume: String)? {
+            guard from.hasPrefix("/dev/disk") else { return nil }
+            let rest = from.dropFirst(9)
+            let disk = String(rest.prefix { $0.isNumber })
+            guard !disk.isEmpty else { return nil }
+            var volume = "disk" + disk
+            let after = rest.dropFirst(disk.count)
+            if after.first == "s" {
+                volume += "s" + String(after.dropFirst().prefix { $0.isNumber })
+            }
+            return ("disk" + disk, volume)
+        }
+        guard let root = mounts.first(where: { $0.on == "/" }).flatMap({ ids($0.from) }) else { return [] }
+        let data = mounts.first(where: { $0.on == "/System/Volumes/Data" }).flatMap { ids($0.from)?.volume }
+        var seen: Set<String> = [root.volume]
+        if let data { seen.insert(data) }
+        var result: [(name: String, used: Int64)] = []
+        for m in mounts {
+            guard let id = ids(m.from), id.container == root.container, !seen.contains(id.volume),
+                  let used = volumeSpaceUsed(m.on) else { continue }
+            seen.insert(id.volume)
+            let last = (m.on as NSString).lastPathComponent
+            let name: String
+            switch last {
+            case "VM": name = L("Memoria virtuale (swap)")
+            case "Preboot": name = L("Avvio di macOS (Preboot)")
+            case "Update": name = L("Aggiornamenti di macOS")
+            case "Recovery": name = L("Recupero di macOS")
+            default: name = L("Volume di sistema %@", last)
+            }
+            result.append((name, used))
+        }
+        return result
+    }
 
     static func volume(_ path: String = "/") -> (total: Int64, used: Int64, free: Int64) {
         let keys: Set<URLResourceKey> = [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]

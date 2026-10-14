@@ -23,6 +23,51 @@ struct MapCell {
     var node: Int
     var rect: CGRect
     var depth: Int
+    /// Cartella disegnata piena, senza il contenuto: al livello di dettaglio scelto finisce qui (zoom per vederla).
+    var collapsed = false
+}
+
+/// Quanto mostra la mappa: non cambia la lettura, solo quanti livelli e quanto piccoli si disegnano.
+enum MapDetail: Int, CaseIterable {
+    case essential, medium, high, full
+
+    var title: String {
+        switch self {
+        case .essential: L("Essenziale")
+        case .medium: L("Medio")
+        case .high: L("Alto")
+        case .full: L("Tutto")
+        }
+    }
+
+    /// Livelli sotto la cartella mostrata.
+    var depth: Int {
+        switch self {
+        case .essential: 2
+        case .medium: 3
+        case .high: 5
+        case .full: 48
+        }
+    }
+
+    /// Lato e area minimi (in punti) perché un elemento abbia il suo rettangolo.
+    var minSide: CGFloat {
+        switch self {
+        case .essential: 22
+        case .medium: 12
+        case .high: 5
+        case .full: 2
+        }
+    }
+
+    var minArea: CGFloat {
+        switch self {
+        case .essential: 1_400
+        case .medium: 400
+        case .high: 60
+        case .full: 6
+        }
+    }
 }
 
 struct MapRender {
@@ -32,6 +77,7 @@ struct MapRender {
         var revision: Int
         var dark: Bool
         var scale: CGFloat
+        var detail: MapDetail
     }
 
     var key: Key
@@ -75,16 +121,20 @@ enum TreemapRenderer {
             let kids = tree[node].children.filter { tree[$0].size > 0 }
             guard !kids.isEmpty else { return }
             let rects = Treemap.layout(kids.map { Double(tree[$0].size) }, in: rect)
-            for (k, r) in zip(kids, rects) where r.width >= 2 && r.height >= 2 && r.width * r.height >= 6 {
+            let detail = key.detail
+            for (k, r) in zip(kids, rects)
+            where r.width >= detail.minSide && r.height >= detail.minSide && r.width * r.height >= detail.minArea {
                 guard cells.count < maxCells else { return }
                 lay(k, r, depth)
             }
         }
 
         func lay(_ node: Int, _ rect: CGRect, _ depth: Int) {
-            cells.append(MapCell(node: node, rect: rect, depth: depth))
             let n = tree[node]
-            guard n.isDirectory, !n.children.isEmpty, depth < 48 else { return }
+            let folder = n.isDirectory && !n.children.isEmpty
+            let collapsed = folder && depth >= key.detail.depth
+            cells.append(MapCell(node: node, rect: rect, depth: depth, collapsed: collapsed))
+            guard folder, !collapsed else { return }
             let top: CGFloat = hasHeader(rect) ? headerHeight : 1.5
             let inner = CGRect(x: rect.minX + 1.5, y: rect.minY + top, width: rect.width - 3, height: rect.height - top - 1.5)
             guard inner.width >= 3, inner.height >= 3 else { return }
@@ -127,7 +177,7 @@ enum TreemapRenderer {
             let node = tree[cell.node]
             guard let colors = palette[node.kind] else { continue }
             let r = cell.rect
-            if node.isDirectory, !node.children.isEmpty {
+            if node.isDirectory, !node.children.isEmpty, !cell.collapsed {
                 ctx.setFillColor(colors.folder)
                 ctx.fill(r)
                 ctx.setStrokeColor(separator)
@@ -145,7 +195,14 @@ enum TreemapRenderer {
             } else {
                 let fill = r.insetBy(dx: 0.5, dy: 0.5)
                 guard fill.width > 0, fill.height > 0 else { continue }
-                if node.isSynthetic {
+                if cell.collapsed {
+                    // Cartella chiusa a questo livello di dettaglio: piena, più chiara di un file, con un bordo.
+                    ctx.setFillColor(colors.fill.copy(alpha: 0.62) ?? colors.fill)
+                    ctx.fill(fill)
+                    ctx.setStrokeColor(separator)
+                    ctx.setLineWidth(1)
+                    ctx.stroke(fill.insetBy(dx: 0.5, dy: 0.5))
+                } else if node.isSynthetic {
                     // Piccoli sommati e spazio non visibile: tinta leggera e tratteggio, si distinguono anche senza colore.
                     ctx.setFillColor(colors.fill.copy(alpha: 0.38) ?? colors.fill)
                     ctx.fill(fill)
@@ -155,7 +212,7 @@ enum TreemapRenderer {
                     ctx.fill(fill)
                 }
                 if fill.width >= 56, fill.height >= 30 {
-                    let ink = node.isSynthetic ? headerInk : colors.ink
+                    let ink = node.isSynthetic || cell.collapsed ? headerInk : colors.ink
                     draw(node.name, font: titleFont, color: ink, in: ctx,
                          at: CGPoint(x: fill.minX + 5, y: fill.minY + 3), maxWidth: fill.width - 10)
                     draw(Format.diskBytes(node.size), font: detailFont, color: ink, in: ctx,
@@ -287,6 +344,7 @@ struct SpaceMapView: View {
             .onChange(of: space.focus) { _, _ in request(geo.size) }
             .onChange(of: space.revision) { _, _ in request(geo.size) }
             .onChange(of: scheme) { _, _ in request(geo.size) }
+            .onChange(of: space.detail) { _, _ in request(geo.size) }
             .onChange(of: renderer.render?.cells.count ?? 0) { _, count in
                 space.mapCells = count
                 space.mapSize = geo.size
@@ -311,7 +369,7 @@ struct SpaceMapView: View {
 
     private func request(_ size: CGSize) {
         renderer.request(tree, MapRender.Key(focus: space.focus, size: size, revision: space.revision,
-                                             dark: scheme == .dark, scale: displayScale))
+                                             dark: scheme == .dark, scale: displayScale, detail: space.detail))
     }
 
     /// Il punto nelle coordinate dell'immagine (durante un ridimensionamento l'immagine è ancora quella vecchia).
@@ -408,6 +466,8 @@ struct SpaceToolbar: View {
                 }
                 tool(L("Sposta nel Cestino"), "trash", key: .delete, enabled: space.canTrashSelection) { space.trashSelection() }
             }
+            separator
+            DetailSlider(space: space)
             Spacer(minLength: 8)
             HStack(spacing: 4) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
@@ -472,6 +532,29 @@ struct SpaceToolbar: View {
         case .delete: "⌫"
         default: String(key.character).uppercased()
         }
+    }
+}
+
+/// Il livello di dettaglio della mappa: da "solo le voci grandi" a "tutto, come GrandPerspective".
+private struct DetailSlider: View {
+    @ObservedObject var space: SpaceModel
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "square.grid.2x2").font(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
+            Slider(value: Binding(get: { Double(space.detail.rawValue) },
+                                  set: { space.detail = MapDetail(rawValue: Int($0.rounded())) ?? .medium }),
+                   in: 0...Double(MapDetail.allCases.count - 1), step: 1)
+                .frame(width: 90)
+                .accessibilityLabel(L("Dettaglio della mappa"))
+                .accessibilityValue(space.detail.title)
+            Image(systemName: "square.grid.4x3.fill").font(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
+            Text(space.detail.title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 62, alignment: .leading)
+        }
+        .help(L("Dettaglio della mappa: quanti livelli e quanto piccoli. Le cartelle piene si aprono con lo zoom."))
     }
 }
 
@@ -600,8 +683,13 @@ private struct ListRow: View {
 
     /// Tipo, e per i file in un elenco misto la cartella che li contiene.
     private func detail(_ node: DiskNode) -> String {
-        var parts = [node.isSynthetic ? L("Piccoli elementi sommati") : node.kind.title]
-        if node.isDirectory { parts.append(L("%d elementi", node.items)) }
+        var parts: [String]
+        if node.isSynthetic {
+            parts = [node.items == 0 ? L("Fuori dalla lettura: spazio di macOS") : L("Piccoli elementi sommati")]
+        } else {
+            parts = [node.kind.title]
+        }
+        if node.isDirectory, node.items > 0 { parts.append(L("%d elementi", node.items)) }
         if showFolder, node.parent >= 0, let path = tree.path(of: node.parent) {
             parts.append((path as NSString).abbreviatingWithTildeInPath)
         }

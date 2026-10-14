@@ -48,9 +48,9 @@ final class AdviceModel: ObservableObject {
         let prompt: String
         switch topic {
         case .space:
-            prompt = L("Ecco lo stato del disco di un Mac:\n%@\n\nDai da 3 a 5 consigli pratici e sicuri per liberare spazio, adatti proprio a questi dati. Un consiglio per riga, ogni riga inizia con \"- \". Non proporre di cancellare file di sistema. Rispondi in italiano.", context)
+            prompt = L("Dati del disco di questo Mac:\n%@\n\nScrivi 4 consigli per liberare spazio, dal più utile (tanto spazio, poco rischio). Ogni consiglio nomina una voce precisa dei dati con la sua dimensione, dice come ridurla (con quale app o impostazione, seguendo la nota della voce) e quanto spazio libera al massimo. Niente consigli generici o già mostrati, niente file di sistema, indice di Spotlight o memoria virtuale. Un consiglio per riga, ogni riga inizia con \"- \".", context)
         case .apps:
-            prompt = L("Ecco memoria e CPU di un Mac adesso:\n%@\n\nDai da 3 a 5 consigli pratici per renderlo più svelto, adatti proprio a questi dati. Un consiglio per riga, ogni riga inizia con \"- \". Rispondi in italiano.", context)
+            prompt = L("Memoria e CPU di questo Mac adesso:\n%@\n\nScrivi 3 consigli per renderlo più svelto adesso, dal più utile. Ogni consiglio nomina un'app precisa dei dati con quanto pesa e dice cosa fare (seguendo la nota dell'app). Se la memoria va bene e la CPU è tranquilla, dillo in un consiglio e non inventare problemi. Niente consigli generici come riavviare il Mac. Un consiglio per riga, ogni riga inizia con \"- \".", context)
         }
         state = .working
         task = Task { [weak self] in
@@ -70,11 +70,16 @@ final class AdviceModel: ObservableObject {
         if #available(macOS 26.0, *) {
             do {
                 let session = LanguageModelSession(instructions: """
-                    You are a careful macOS assistant. You give short, practical and safe advice about disk space, \
-                    memory and CPU on a Mac, based only on the data you are given. Never suggest deleting system \
-                    files or running commands that delete data without asking. Keep each tip under 35 words.
+                    You are an expert Mac technician. You read a short report about one Mac and give specific advice \
+                    for that Mac only: every tip names an item from the report, its size, the concrete action and \
+                    the app or setting to use. Use the notes in the report: they say what each item is and how it \
+                    is safely reduced. Never invent items, sizes or settings that are not in the report. Never \
+                    suggest deleting system files, the Spotlight index or virtual memory. Each tip is one sentence \
+                    under 40 words, written in the language of the request.
+                    Example of a good tip: "- ~/Downloads (6,4 GB): open it in the Finder sorted by size and move \
+                    the videos you have already watched to an external disk; frees up to 6,4 GB."
                     """)
-                let response = try await session.respond(to: prompt)
+                let response = try await session.respond(to: prompt, options: GenerationOptions(temperature: 0.3))
                 return .answer(parse(response.content))
             } catch {
                 diag(.app, "apple intelligence failed: \(error)")

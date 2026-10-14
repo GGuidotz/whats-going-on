@@ -19,6 +19,9 @@ Gli attrezzi: quando il disco è pieno o il Mac rallenta, vedi perché e sistemi
 ### Miglioramenti
 - Firma con un'identità locale stabile, quando c'è: l'Accesso completo al disco dato agli attrezzi resta dopo gli aggiornamenti.
 - Gli attrezzi non lavorano finché non li apri; chiusa la finestra, la mappa se ne va dalla memoria.
+- Mappa: Dettaglio regolabile (Essenziale, Medio, Alto, Tutto). Le cartelle sotto il livello scelto restano piene e si aprono con lo zoom.
+- Lo spazio che nessuna app può leggere è diviso per parti: volume di sistema di macOS, swap, Preboot, aggiornamenti, snapshot.
+- Consigli di Apple Intelligence più precisi: il modello sa cos'è ogni voce, quando l'hai usata e quali consigli ha già visto. La scheda della selezione spiega cos'è la voce scelta.
 - Lettura del disco con getattrlistbulk, più veloce di una lettura file per file; la mappa si disegna una volta in un'immagine, così passare con il puntatore e cercare non costano nulla.
 
 ## 0.4.1 · 2026-10-13
