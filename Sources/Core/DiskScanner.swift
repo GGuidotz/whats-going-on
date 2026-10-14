@@ -376,8 +376,10 @@ final class DiskScanner: @unchecked Sendable {
             nodes.append(DiskNode(name: L("Non visibile: sistema, snapshot e cartelle protette"), size: hidden,
                                   kind: .system, isDirectory: false, isSynthetic: true, items: 0, modified: nil,
                                   parent: rootIndex))
-            nodes[rootIndex].children.append(nodes.count - 1)
-            nodes[rootIndex].children.sort { nodes[$0].size > nodes[$1].size }
+            var children = nodes[rootIndex].children
+            children.append(nodes.count - 1)
+            children.sort { nodes[$0].size > nodes[$1].size }
+            nodes[rootIndex].children = children
             nodes[rootIndex].size += hidden
         }
 
