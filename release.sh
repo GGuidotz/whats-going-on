@@ -21,7 +21,16 @@ gh release view "v$VERSION" --repo "$APP_REPO" >/dev/null 2>&1 && die "La releas
 ./build.sh --dmg
 DMG="dist/WhatsGoingOn-$VERSION.dmg"
 SHA=$(shasum -a 256 "$DMG" | cut -d' ' -f1)
-NOTES=$(awk -v v="$VERSION" '$0 ~ "^## "v" " {f=1; next} /^## / {f=0} f' CHANGELOG.md)
+section() { awk -v v="$VERSION" '$0 ~ "^## "v" " {f=1; next} /^## / {f=0} f' "$1"; }
+# Note della release: in inglese se c'è la versione inglese, poi l'italiano; i gruppi con i nomi delle note di rilascio.
+NOTES_IT=$(section CHANGELOG.md | sed -e 's/^### Novità/### New features/' -e 's/^### Miglioramenti/### Improvements/' \
+  -e 's/^### Correzioni/### Bug fixes/' -e 's/^### Sicurezza/### Security/' -e 's/^### Problemi noti/### Known issues/')
+NOTES_EN=$([ -f CHANGELOG.en.md ] && section CHANGELOG.en.md || true)
+if [ -n "$NOTES_EN" ]; then
+  NOTES="$NOTES_EN"$'\n\n---\n\n## Italiano\n'"$NOTES_IT"
+else
+  NOTES="$NOTES_IT"
+fi
 
 gh release create "v$VERSION" "$DMG" --repo "$APP_REPO" --title "What's Going On $VERSION" --notes "$NOTES"
 

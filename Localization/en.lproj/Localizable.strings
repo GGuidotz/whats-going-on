@@ -603,3 +603,11 @@
 "in uso" = "in use";
 "si ricompila con %@" = "rebuilt with %@";
 "si riscarica con %@" = "downloaded again with %@";
+
+/* 0.6.0: schermata delle novità */
+"%d voci" = "%d items";
+"Continua" = "Continue";
+"Le note complete sono in Impostazioni › Aggiornamenti." = "Full notes are in Settings › Updates.";
+"Mostra la schermata delle novità" = "Show What's New";
+"Novità" = "What's New";
+"Novità di What's Going On" = "What's New in What's Going On";

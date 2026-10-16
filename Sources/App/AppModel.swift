@@ -23,6 +23,7 @@ final class AppModel: ObservableObject {
     private let settingsWindow = SettingsWindowController()
     private let onboardingWindow = OnboardingWindowController()
     private let toolsWindow = ToolsWindowController()
+    private let whatsNewWindow = WhatsNewWindowController()
     private var bag = Set<AnyCancellable>()
 
     var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0" }
@@ -73,6 +74,15 @@ final class AppModel: ObservableObject {
     /// La guida dei primi passi: da sola al primo avvio, poi da Impostazioni › Generale.
     func showOnboarding() {
         onboardingWindow.show(model: self)
+    }
+
+    /// Le novità: da sole dopo un aggiornamento, oppure da Impostazioni › Aggiornamenti.
+    func showWhatsNewIfUpdated(firstLaunch: Bool) {
+        whatsNewWindow.showIfUpdated(firstLaunch: firstLaunch)
+    }
+
+    func showWhatsNew() {
+        whatsNewWindow.showCurrent()
     }
 
     /// Gli attrezzi: Spazio (cosa occupa il disco) o App (memoria e CPU). Dal pannello, dagli avvisi e dal menu.

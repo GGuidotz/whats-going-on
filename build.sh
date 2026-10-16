@@ -40,6 +40,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" Resources/Info.plist > "$PLIST"
 cp -R Localization/*.lproj "$APP/Contents/Resources/"
 cp CHANGELOG.md "$APP/Contents/Resources/CHANGELOG.md"   # Impostazioni › Aggiornamenti › Novità di questa versione
+[ -f CHANGELOG.en.md ] && cp CHANGELOG.en.md "$APP/Contents/Resources/CHANGELOG.en.md"   # le stesse, in inglese
 
 SOURCES=(Sources/**/*.swift)
 # Apple Intelligence (FoundationModels, macOS 26): collegato "debole", così l'app parte anche su macOS 14 e 15.

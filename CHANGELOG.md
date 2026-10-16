@@ -5,26 +5,27 @@ cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggi
 
 ## 0.6.0 · 2026-10-16
 
-Disinstalla le app con tutto quello che lasciano, e guarda chi consuma energia, disco e rete.
+Disinstalla le app per davvero, guarda chi consuma energia, disco e rete, e libera spazio più in fretta.
 
 ### Novità
-- Attrezzi › Disinstalla: le app installate, con quanto pesano e quando le hai usate l'ultima volta, da ordinare per dimensione, ultimo uso o nome. Per ognuna, cosa ha lasciato nella Libreria: dati, cache, preferenze, contenitori, stato delle finestre, avvio automatico. Disinstalla sposta l'app e gli avanzi scelti nel Cestino, con conferma. Gli avanzi trovati solo per nome restano da scegliere a mano; quelli fuori dalla tua cartella si mostrano nel Finder.
-- Attrezzi › App: oltre a memoria e CPU, Energia (watt di ogni app, su Apple silicon), Disco (letture e scritture al secondo) e Rete (ricevuti e inviati da ogni app). Si leggono solo con la scheda aperta.
-- Attrezzi › Spazio: Cerca su tutto il Mac, i file per nome con Spotlight, anche senza leggere il disco, dal più grande, con Mostra nel Finder e Cestino.
-- Nuovo consiglio, Cache degli strumenti da sviluppatore: npm, Yarn, pnpm, Bun, Deno, Cargo, Gradle, Maven, Go, pip, Poetry, uv, Homebrew, CocoaPods, Playwright, Puppeteer, NuGet, JetBrains. Si riscaricano da sole al prossimo uso.
-- Pannello › Batteria: l'alimentatore collegato e i suoi watt, quanto entra dall'alimentatore, quanto va alla batteria o ne esce, capacità di oggi e di fabbrica in mAh.
-- Pannello › CPU: nome del processore, carico medio a 1, 5 e 15 minuti, da quanto è acceso il Mac.
-- Clic destro sulla voce nella barra: Disinstalla app.
-- Attrezzi › Spazio: Elenco accanto alla Mappa, una tabella da ordinare per nome, dimensione, elementi, data o tipo, con le caselle per spostare più voci nel Cestino insieme, anche da cartelle diverse.
-- Clic su un tipo nella legenda: la mappa mostra solo quello e spegne gli altri in grigio; l'elenco tiene solo quello.
-- Analizza una cartella: Cartella utente, Download, Documenti o una a scelta. Più veloce di tutto il disco, e la mappa mostra solo quella.
-- Recuperati finora: in alto, quanto hai spostato nel Cestino da quando hai aperto gli Attrezzi, disinstallazioni comprese.
+- **Disinstalla app.** L'app e tutto quello che lascia nella Libreria, anche nella cartella del produttore (Google/Chrome), con peso e ultimo uso. Tutto nel Cestino, con conferma.
+- **Energia, disco e rete per app.** In Attrezzi › App: i watt di ogni app, letture e scritture su disco, dati ricevuti e inviati.
+- **Vista Elenco con selezione multipla.** Accanto alla mappa, una tabella da ordinare per colonna: spunti più voci, anche da cartelle diverse, e le sposti nel Cestino insieme.
+- **Analizza una cartella.** Cartella utente, Download, Documenti o una a scelta, senza leggere tutto il disco.
+- **Filtro per tipo.** Clic su un tipo nella legenda: la mappa mostra solo quello.
+- **Cerca su tutto il Mac.** I file per nome con Spotlight, dal più grande, anche senza leggere il disco.
+- **Recuperati finora.** Quanto hai spostato nel Cestino da quando hai aperto gli Attrezzi.
+- **Alimentazione e processore nel pannello.** Alimentatore e suoi watt, energia verso o dalla batteria, capacità in mAh; nome del processore, carico medio, da quanto è acceso il Mac.
+- **Schermata delle novità.** Dopo ogni aggiornamento, questa pagina; poi in Impostazioni › Aggiornamenti.
 
 ### Miglioramenti
-- La lettura del disco usa tutti i core: le cartelle dei primi livelli si leggono in parallelo, con priorità alta invece che di sottofondo. Sui Mac Apple silicon lavorano anche i core performance.
-- Cartelle dei progetti al posto di Progetti fermi: riconosciute dal file di progetto (target solo accanto a Cargo.toml o pom.xml, build accanto a build.gradle, .venv solo con pyvenv.cfg, node_modules accanto a package.json, Pods accanto al Podfile), divise per strumento (Node.js, Rust, Swift, Gradle, Maven, CocoaPods, Python, Flutter, .NET, Xcode). Per ognuna è scritto se si ricompila sul Mac o si riscarica, con quale comando e da quanto il progetto è fermo. Si vedono tutte; il pulsante grande sposta solo quelle ferme da un mese.
-- Disinstalla trova anche gli avanzi nelle cartelle del produttore, come Application Support/Google/Chrome, prendendo solo la cartella con il nome dell'app: le altre app dello stesso produttore, come Google Drive, restano dove sono.
-- Gli archivi di Xcode hanno un consiglio a parte: non si ricreano, quindi si aprono nel Finder invece di finire nel Cestino.
+- **Lettura del disco su tutti i core.** Le cartelle si leggono in parallelo e con priorità alta: molto più veloce, soprattutto su Apple silicon.
+- **Cartelle dei progetti.** Riconosciute dal file di progetto e divise per strumento (Node.js, Rust, Swift, Python, Gradle…), ognuna con il comando che la rifà e se si ricompila o si riscarica. Il pulsante grande sposta solo quelle ferme da un mese.
+- **Cache degli strumenti da sviluppatore.** npm, pip, Cargo, Gradle, Homebrew, CocoaPods, Playwright e altri in un solo consiglio: si riscaricano da sole.
+- **Archivi di Xcode.** Un consiglio a parte: non si ricreano, quindi si aprono nel Finder invece di finire nel Cestino.
+
+### Correzioni
+- **Niente più falsi progetti.** Cartelle che si chiamano solo come quelle degli strumenti (Pods, venv, la cache globale ~/.gradle) non sono più proposte come rigenerabili senza il loro file di progetto.
 
 ## 0.5.0 · 2026-10-14
 
