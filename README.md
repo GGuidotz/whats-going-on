@@ -15,13 +15,13 @@ isola. Progetto indipendente, non affiliato a Cocaine. Ispirato a [Stats](https:
 
 | Misura | Dettagli |
 |---|---|
-| CPU | utente e sistema, carico di ogni core (modalità avanzata), app più attive |
+| CPU | utente e sistema, processore, carico medio, da quanto è acceso, carico di ogni core (modalità avanzata), app più attive |
 | Memoria | pressione, app, riservata, compressa, swap, app che usano più memoria |
 | Rete | velocità di download e upload, traffico da quando è aperta, indirizzo locale |
 | Temperatura | chip e GPU; tutti i sensori in modalità avanzata |
 | GPU | utilizzo e memoria (modalità avanzata) |
 | Disco | spazio libero e occupato |
-| Batteria e consumo | livello, tempo rimasto, salute, cicli, watt; consumo del Mac dove macOS lo espone |
+| Batteria e consumo | livello, tempo rimasto, salute, capacità, cicli; alimentatore e flusso di energia (quanto entra, quanto va alla batteria); consumo del Mac dove macOS lo espone |
 
 Nella barra dei menu, di predefinito: CPU, RAM e RETE. In Impostazioni › Barra dei menu scegli moduli, ordine e stile
 (numeri, o numeri con un piccolo grafico a barre), gli spazi e i colori (scala rosso-verde o tre colori a scelta), con
@@ -44,10 +44,14 @@ Su richiesta, in una finestra loro (⌘T dal pannello, i pulsanti nelle righe Di
 
 - **Spazio**: una mappa del disco come [GrandPerspective](https://grandperspective.sourceforge.net), ogni rettangolo
   grande quanto lo spazio che occupa, colorato per tipo. A destra i consigli: cache delle app, progetti fermi da più di
-  un mese (node_modules, .build, DerivedData), installer già usati, backup di iPhone, file grandi non aperti da 6 mesi.
-  Quello che togli va nel Cestino, sempre con conferma. Con l'Accesso completo al disco la mappa vede anche Mail,
-  Messaggi, Safari e i backup.
-- **App**: chi pesa in memoria e chi fa lavorare la CPU, con Chiudi e Forza chiusura.
+  un mese (node_modules, .build, DerivedData), cache degli strumenti da sviluppatore (npm, pip, Cargo, Gradle,
+  Homebrew…), installer già usati, backup di iPhone, file grandi non aperti da 6 mesi. Quello che togli va nel Cestino,
+  sempre con conferma. Con l'Accesso completo al disco la mappa vede anche Mail, Messaggi, Safari e i backup. In più,
+  Cerca su tutto il Mac: i file per nome con Spotlight, anche senza leggere il disco.
+- **App**: chi pesa in memoria, chi fa lavorare la CPU, chi consuma energia, chi lavora sul disco e chi usa la rete,
+  con Chiudi e Forza chiusura.
+- **Disinstalla**: le app installate con peso e ultimo uso; per ognuna ciò che ha lasciato nella Libreria (dati, cache,
+  preferenze, contenitori, avvio automatico). App e avanzi scelti vanno nel Cestino, con conferma.
 - **Mole**: se hai [Mole](https://github.com/tw93/Mole) (`brew install mole`), anteprima e pulizia con `mo clean` e
   manutenzione con `mo optimize`, dentro l'app. Mole è un programma a parte (GPL-3.0): lo chiamiamo, non lo includiamo.
 - **Apple Intelligence** (sperimentale): consigli scritti dal modello sul Mac, senza rete.
@@ -102,7 +106,9 @@ Impostazioni › Feedback (o clic destro sulla voce nella barra › Invia un fee
 - Le temperature su Apple silicon passano da funzioni di IOKit non documentate (le stesse usate da Stats). Se un
   aggiornamento di macOS le cambia, la riga Temperatura sparisce invece di mostrare dati sbagliati.
 - I processi di sistema che girano come root non si leggono senza privilegi: nell'elenco delle app non compaiono.
-- Il consumo totale del Mac c'è solo dove l'SMC lo espone.
+- Il consumo totale del Mac c'è solo dove l'SMC lo espone; energia per app e flusso dell'alimentatore solo su Apple
+  silicon.
+- La rete per app viene da `nettop` di macOS, chiamato solo con l'attrezzo App aperto.
 - Niente ventole: sui Mac recenti non servono, e controllarle richiederebbe privilegi di amministratore.
 - L'app non è notarizzata: niente account Apple Developer. Le versioni pubblicate sono firmate con un'identità locale
   stabile, così macOS ricorda l'Accesso completo al disco tra un aggiornamento e l'altro.

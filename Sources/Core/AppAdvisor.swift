@@ -1,5 +1,5 @@
-// Una frase su memoria e CPU, per l'attrezzo "App": cosa conviene fare adesso. Regole semplici, dette chiare: il primo
-// gesto utile è quasi sempre chiudere l'app che pesa di più.
+// Una frase su memoria, CPU, energia, disco e rete, per l'attrezzo "App": cosa conviene fare adesso. Regole semplici,
+// dette chiare: il primo gesto utile è quasi sempre chiudere l'app che pesa di più.
 
 import Foundation
 
@@ -42,6 +42,50 @@ enum AppAdvisor {
         return L("La CPU è tranquilla.")
     }
 
+    static func energyAdvice(_ s: Snapshot) -> String {
+        let apps = s.topByEnergy.filter { $0.name != "kernel_task" }
+        guard let top = apps.first else { return L("Sto misurando l'energia delle app…") }
+        if (top.energy ?? 0) < 0.05 {
+            return L("Il Mac sta usando poca energia: niente da fare. Su Intel l'energia per app non si legge.")
+        }
+        let onBattery = s.battery.map { !$0.onAC } ?? false
+        if (top.energy ?? 0) >= 2 {
+            return onBattery
+                ? L("%@ consuma %@: a batteria è quella che la scarica di più. Chiuderla allunga l'autonomia.",
+                    top.name, Format.watts(top.energy ?? 0))
+                : L("%@ consuma %@, più di tutte le altre app.", top.name, Format.watts(top.energy ?? 0))
+        }
+        return L("Nessuna app consuma molto: il consumo è diviso tra tante.")
+    }
+
+    static func diskAdvice(_ s: Snapshot) -> String {
+        guard let top = s.topByDisk.first, top.disk >= 1_000_000 else {
+            return L("Nessuna app sta lavorando sul disco.")
+        }
+        if ["mds", "mds_stores", "mdworker_shared", "backupd", "photoanalysisd", "softwareupdated", "bird", "cloudd"]
+            .contains(top.name) {
+            return L("%@ è un lavoro di macOS (Spotlight, Time Machine, iCloud o aggiornamenti): finisce da solo.", top.name)
+        }
+        return L("%@ legge e scrive più di tutte (%@ al secondo). Se il Mac rallenta, aspetta che finisca o chiudila.",
+                 top.name, Format.rate(top.disk))
+    }
+
+    static func networkAdvice(_ s: Snapshot, available: Bool) -> String {
+        guard available else {
+            return L("Sto misurando la rete delle app: la prima lettura arriva tra pochi secondi.")
+        }
+        guard let top = s.topByNetwork.first, top.net >= 50_000 else {
+            return L("Nessuna app sta usando molto la rete.")
+        }
+        if ["bird", "cloudd", "nsurlsessiond", "photolibraryd"].contains(top.name) {
+            return L("%@ è iCloud che sincronizza: finisce da solo.", top.name)
+        }
+        if ["softwareupdated", "com.apple.MobileSoftwareUpdate.UpdateBrainService", "appstoreagent"].contains(top.name) {
+            return L("macOS sta scaricando aggiornamenti: finisce da solo.")
+        }
+        return L("%@ usa più rete di tutte: ↓ %@, ↑ %@.", top.name, Format.rate(top.netIn ?? 0), Format.rate(top.netOut ?? 0))
+    }
+
     /// Per Apple Intelligence: memoria, CPU e le app che pesano di più, con una nota su cosa sono.
     static func summary(_ s: Snapshot) -> String {
         var lines: [String] = []
@@ -58,6 +102,7 @@ enum AppAdvisor {
         for p in s.topByMemory.prefix(8) + s.topByCPU.prefix(4) where !listed.contains(p.name) {
             listed.insert(p.name)
             var line = "- \(p.name): \(Format.bytes(p.memory)), \(Format.corePercent(p.cpu))"
+            if let watts = p.energy, watts >= 0.5 { line += ", " + Format.watts(watts) }
             if let note = hint(for: p.name) { line += ". " + note }
             lines.append(line)
         }

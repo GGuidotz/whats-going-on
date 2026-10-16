@@ -314,7 +314,8 @@ final class SpaceModel: ObservableObject {
         }
     }
 
-    func trash(_ items: [FoundItem]) {
+    /// - done: chiamato con i percorsi finiti nel Cestino (per chi tiene un elenco suo, come la ricerca Spotlight).
+    func trash(_ items: [FoundItem], done: ((Set<String>) -> Void)? = nil) {
         let allowed = items.filter { canTrash($0.path) }
         guard !allowed.isEmpty else { return }
         let total = allowed.reduce(0) { $0 + $1.size }
@@ -339,7 +340,10 @@ final class SpaceModel: ObservableObject {
                 }
             }
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.didTrash(moved, failed: failed) }
+                MainActor.assumeIsolated {
+                    self?.didTrash(moved, failed: failed)
+                    done?(Set(moved.map(\.path)))
+                }
             }
         }
     }
@@ -437,6 +441,7 @@ struct SpaceView: View {
     @ObservedObject var mole: MoleRunner
     @ObservedObject var advice: AdviceModel
     @ObservedObject var prefs: Preferences
+    var search: SpotlightSearch
 
     var body: some View {
         HStack(spacing: 0) {
@@ -472,6 +477,9 @@ struct SpaceView: View {
                 if space.phase == .done, let tree = space.tree {
                     SpaceListView(space: space, pointer: space.pointer, tree: tree)
                     tipsSection
+                }
+                ToolSection(title: L("Cerca su tutto il Mac"), symbol: "magnifyingglass") {
+                    SpotlightBox(search: search, space: space)
                 }
                 ToolSection(title: L("Pulizia con Mole"), symbol: "sparkles") {
                     MoleBox(runner: mole, command: .clean)

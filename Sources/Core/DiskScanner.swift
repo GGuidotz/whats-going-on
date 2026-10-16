@@ -55,8 +55,10 @@ struct FoundItem: Identifiable, Equatable {
     var path: String
     var size: Int64
     var date: Date?
+    /// Un nome da mostrare al posto di quello della cartella ("Cache di npm" per _cacache).
+    var label: String? = nil
     var id: String { path }
-    var name: String { (path as NSString).lastPathComponent }
+    var name: String { label ?? (path as NSString).lastPathComponent }
 }
 
 struct ScanFindings {
@@ -623,7 +625,8 @@ final class DiskScanner: @unchecked Sendable {
     /// Cartelle che si ricostruiscono: dipendenze e prodotti di compilazione.
     private static func isRebuildable(_ name: String, parent: String?) -> Bool {
         switch name {
-        case "node_modules", ".build", "Pods", ".venv", "venv", ".next", ".gradle": return true
+        case "node_modules", ".build", "Pods", ".venv", "venv", ".next", ".nuxt", ".svelte-kit", ".turbo", ".gradle":
+            return true
         case "DerivedData": return parent == "Xcode"
         default: return false
         }

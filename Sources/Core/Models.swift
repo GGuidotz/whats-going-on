@@ -61,6 +61,16 @@ struct BatterySample: Equatable {
     /// Watt: positivo in carica, negativo in scarica.
     var watts: Double?
     var temperature: Double?
+    /// Capacità di fabbrica e piena carica di oggi, in mAh.
+    var designCapacity: Int?
+    var fullChargeCapacity: Int?
+    /// L'alimentatore collegato: nome (se macOS lo sa) e watt dichiarati.
+    var adapterName: String?
+    var adapterWatts: Int?
+    /// Il flusso di energia, in watt, dove il Mac lo racconta (Apple silicon): quanto entra dall'alimentatore e
+    /// quanto consuma il Mac. La differenza va alla batteria o ne esce (watts).
+    var powerIn: Double?
+    var systemLoad: Double?
 }
 
 struct TemperatureSensor: Equatable, Identifiable {
@@ -92,7 +102,25 @@ struct ProcessUsage: Equatable, Identifiable {
     var memory: UInt64
     /// L'app che contiene il processo (/Applications/Safari.app), per chiuderla; nil per i processi senza app.
     var bundlePath: String? = nil
+    /// Solo con l'attrezzo App aperto: letture e scritture su disco (byte al secondo), energia (watt), rete (byte al
+    /// secondo). nil quando non si leggono.
+    var diskRead: Double? = nil
+    var diskWrite: Double? = nil
+    var energy: Double? = nil
+    var netIn: Double? = nil
+    var netOut: Double? = nil
     var id: String { name }
+
+    var disk: Double { (diskRead ?? 0) + (diskWrite ?? 0) }
+    var net: Double { (netIn ?? 0) + (netOut ?? 0) }
+}
+
+/// Carico medio (processi pronti a lavorare, come uptime) e da quanto è acceso il Mac. Si legge a pannello aperto.
+struct LoadSample: Equatable {
+    var one: Double
+    var five: Double
+    var fifteen: Double
+    var uptime: TimeInterval
 }
 
 struct Snapshot: Equatable {
@@ -108,7 +136,11 @@ struct Snapshot: Equatable {
     var processes: [ProcessUsage] = []
     /// What's Going On stessa: quanto pesa adesso.
     var ownUsage: ProcessUsage?
+    var load: LoadSample?
 
     var topByCPU: [ProcessUsage] { processes.sorted { $0.cpu > $1.cpu } }
     var topByMemory: [ProcessUsage] { processes.sorted { $0.memory > $1.memory } }
+    var topByEnergy: [ProcessUsage] { processes.filter { $0.energy != nil }.sorted { $0.energy! > $1.energy! } }
+    var topByDisk: [ProcessUsage] { processes.filter { $0.diskRead != nil }.sorted { $0.disk > $1.disk } }
+    var topByNetwork: [ProcessUsage] { processes.filter { $0.netIn != nil }.sorted { $0.net > $1.net } }
 }

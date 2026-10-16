@@ -3,6 +3,23 @@
 Formato: `## <versione> · <data>`, poi `### Novità`, `### Miglioramenti`, `### Correzioni`, una riga `- ` per
 cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggiornamenti (Sources/App/Changelog.swift).
 
+## 0.6.0 · 2026-10-16
+
+Disinstalla le app con tutto quello che lasciano, e guarda chi consuma energia, disco e rete.
+
+### Novità
+- Attrezzi › Disinstalla: le app installate, con quanto pesano e quando le hai usate l'ultima volta, da ordinare per dimensione, ultimo uso o nome. Per ognuna, cosa ha lasciato nella Libreria: dati, cache, preferenze, contenitori, stato delle finestre, avvio automatico. Disinstalla sposta l'app e gli avanzi scelti nel Cestino, con conferma. Gli avanzi trovati solo per nome restano da scegliere a mano; quelli fuori dalla tua cartella si mostrano nel Finder.
+- Attrezzi › App: oltre a memoria e CPU, Energia (watt di ogni app, su Apple silicon), Disco (letture e scritture al secondo) e Rete (ricevuti e inviati da ogni app). Si leggono solo con la scheda aperta.
+- Attrezzi › Spazio: Cerca su tutto il Mac, i file per nome con Spotlight, anche senza leggere il disco, dal più grande, con Mostra nel Finder e Cestino.
+- Nuovo consiglio, Cache degli strumenti da sviluppatore: npm, Yarn, pnpm, Bun, Deno, Cargo, Gradle, Maven, Go, pip, Poetry, uv, Homebrew, CocoaPods, Playwright, Puppeteer, NuGet, JetBrains. Si riscaricano da sole al prossimo uso.
+- Pannello › Batteria: l'alimentatore collegato e i suoi watt, quanto entra dall'alimentatore, quanto va alla batteria o ne esce, capacità di oggi e di fabbrica in mAh.
+- Pannello › CPU: nome del processore, carico medio a 1, 5 e 15 minuti, da quanto è acceso il Mac.
+- Clic destro sulla voce nella barra: Disinstalla app.
+
+### Miglioramenti
+- Gli archivi di Xcode hanno un consiglio a parte: non si ricreano, quindi si aprono nel Finder invece di finire nel Cestino.
+- Progetti fermi: contano anche .nuxt, .svelte-kit e .turbo.
+
 ## 0.5.0 · 2026-10-14
 
 Gli attrezzi: quando il disco è pieno o il Mac rallenta, vedi perché e sistemi da qui.

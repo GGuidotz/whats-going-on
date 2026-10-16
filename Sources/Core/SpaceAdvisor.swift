@@ -66,6 +66,30 @@ enum SpaceAdvisor {
                                  bytes: idle.reduce(0) { $0 + $1.size }, items: idle, action: .trash))
         }
 
+        // Cache degli strumenti da sviluppatore: pacchetti scaricati che il gestore riscarica quando servono.
+        let devCaches = developerCaches.compactMap { cache -> FoundItem? in
+            let path = home + "/" + cache.path
+            let bytes = size(path)
+            return bytes >= 100_000_000 ? FoundItem(path: path, size: bytes, date: nil, label: cache.name) : nil
+        }
+        if !devCaches.isEmpty {
+            tips.append(SpaceTip(id: "devcaches", symbol: "shippingbox.and.arrow.backward",
+                                 title: L("Cache degli strumenti da sviluppatore"),
+                                 detail: L("Pacchetti e compilazioni che npm, pip, Cargo, Gradle, Homebrew e gli altri riscaricano o rifanno da soli al prossimo uso: %@.",
+                                           devCaches.prefix(4).map(\.name).joined(separator: ", ")),
+                                 bytes: devCaches.reduce(0) { $0 + $1.size }, items: devCaches, action: .trash))
+        }
+        // Gli archivi di Xcode no: sono le app che hai pubblicato, non si rifanno.
+        let archives = size(home + "/Library/Developer/Xcode/Archives")
+        if archives >= 1_000_000_000 {
+            let path = home + "/Library/Developer/Xcode/Archives"
+            tips.append(SpaceTip(id: "archives", symbol: "archivebox.circle", title: L("Archivi di Xcode"),
+                                 detail: L("%@ di app archiviate. Non si ricreano: tieni quelli delle versioni che potresti dover ricaricare, gli altri si tolgono da Xcode › Window › Organizer.",
+                                           Format.diskBytes(archives)),
+                                 bytes: archives, items: [FoundItem(path: path, size: archives, date: nil)],
+                                 action: .reveal))
+        }
+
         // Xcode: supporto ai dispositivi e simulatori.
         let deviceSupport = ["iOS DeviceSupport", "watchOS DeviceSupport", "macOS DeviceSupport", "tvOS DeviceSupport",
                              "visionOS DeviceSupport"]
@@ -151,6 +175,32 @@ enum SpaceAdvisor {
 
         return tips.sorted { $0.bytes > $1.bytes }
     }
+
+    /// Le cache globali dei gestori di pacchetti e degli strumenti di compilazione, rispetto alla cartella utente.
+    /// Tutte si ricreano da sole: è la condizione per stare qui.
+    static var developerCaches: [(path: String, name: String)] { [
+        (".npm/_cacache", L("Cache di npm")),
+        ("Library/Caches/Yarn", L("Cache di Yarn")),
+        (".yarn/berry/cache", L("Cache di Yarn")),
+        ("Library/pnpm/store", L("Archivio di pnpm")),
+        (".bun/install/cache", L("Cache di Bun")),
+        ("Library/Caches/deno", L("Cache di Deno")),
+        (".cargo/registry", L("Registro di Cargo")),
+        (".gradle/caches", L("Cache di Gradle")),
+        (".m2/repository", L("Dipendenze di Maven")),
+        ("go/pkg/mod", L("Moduli di Go")),
+        ("Library/Caches/go-build", L("Compilazioni di Go")),
+        ("Library/Caches/pip", L("Cache di pip")),
+        ("Library/Caches/pypoetry", L("Cache di Poetry")),
+        ("Library/Caches/uv", L("Cache di uv")),
+        ("Library/Caches/Homebrew", L("Download di Homebrew")),
+        ("Library/Caches/CocoaPods", L("Cache di CocoaPods")),
+        ("Library/Caches/ms-playwright", L("Browser di Playwright")),
+        (".cache/puppeteer", L("Browser di Puppeteer")),
+        (".nuget/packages", L("Pacchetti di NuGet")),
+        ("Library/Developer/CoreSimulator/Caches", L("Cache del simulatore")),
+        ("Library/Caches/JetBrains", L("Cache di JetBrains")),
+    ] }
 
     private static func largestPhotosLibrary(_ tree: DiskTree, home: String) -> FoundItem? {
         guard let pictures = tree.find(home + "/Pictures") else { return nil }
@@ -256,6 +306,10 @@ enum SpaceAdvisor {
         if has("UBF8T346G9.Office") || has("Outlook") { return L("dati di Microsoft Outlook e Office: si riducono dalle impostazioni di Outlook") }
         if has("minecraft") { return L("mondi e dati di Minecraft") }
         if has("node_modules") { return L("dipendenze di un progetto: si ricreano con npm install") }
+        if has("/Developer/Xcode/Archives") { return L("archivi di Xcode: le app pubblicate, non si ricreano") }
+        if developerCaches.contains(where: { p == "~/" + $0.path || p.hasPrefix("~/" + $0.path + "/") }) {
+            return L("cache di uno strumento da sviluppatore: si riscarica da sola, si può togliere")
+        }
         if p.hasPrefix("/opt/homebrew") || p.hasPrefix("/usr/local/Cellar") { return L("Homebrew: brew cleanup toglie le versioni vecchie") }
         if p.hasPrefix("/private/var/vm") { return L("memoria virtuale di macOS (sleepimage, swap): la gestisce il sistema") }
         if p.hasPrefix("/Applications/") && ext == "app" { return L("app installata: si toglie se non la usi") }

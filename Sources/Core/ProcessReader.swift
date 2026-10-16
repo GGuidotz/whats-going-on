@@ -1,12 +1,20 @@
-// Quali app lavorano di più: tempo di CPU e memoria di ogni processo (proc_pid_rusage), sommati per app. Gli aiutanti
-// dentro un bundle (Google Chrome Helper, gli aiutanti di Electron) contano per l'app che li contiene.
+// Quali app lavorano di più: tempo di CPU e memoria di ogni processo (proc_pid_rusage), sommati per app; con l'attrezzo
+// App aperto anche disco, energia e rete. Gli aiutanti dentro un bundle (Google Chrome Helper, gli aiutanti di
+// Electron) contano per l'app che li contiene.
 // I processi di sistema di root non si leggono senza privilegi: restano fuori, ed è un limite noto.
 
 import Darwin
 import Foundation
 
 final class ProcessReader {
-    private var previousTime: [pid_t: UInt64] = [:]
+    private struct Counters {
+        var cpu: UInt64
+        var diskRead: UInt64
+        var diskWrite: UInt64
+        var energy: UInt64
+    }
+
+    private var previous: [pid_t: Counters] = [:]
     private var names: [pid_t: (name: String, bundle: String?)] = [:]
     private var lastTime: UInt64 = 0
     private let timebase: (numer: UInt64, denom: UInt64) = {
@@ -15,7 +23,11 @@ final class ProcessReader {
         return (UInt64(max(1, info.numer)), UInt64(max(1, info.denom)))
     }()
 
-    func read(limit: Int = 12) -> [ProcessUsage] {
+    /// - detailed: l'attrezzo App è aperto. Oltre a CPU e memoria, disco ed energia di ogni app (dagli stessi
+    ///   contatori, nessuna chiamata in più) e la rete, se `network` porta le velocità per processo; nell'elenco
+    ///   entrano anche le prime per energia, disco e rete.
+    func read(limit: Int = 12, detailed: Bool = false,
+              network: [pid_t: (down: Double, up: Double)]? = nil) -> [ProcessUsage] {
         let capacity = Int(proc_listallpids(nil, 0)) + 64
         guard capacity > 64 else { return [] }
         var pids = [pid_t](repeating: 0, count: capacity)
@@ -26,41 +38,68 @@ final class ProcessReader {
 
         let now = DispatchTime.now().uptimeNanoseconds
         let elapsed = lastTime > 0 ? Double(now - lastTime) : 0
-        var times: [pid_t: UInt64] = [:]
-        var byApp: [String: (cpu: Double, memory: UInt64, bundle: String?)] = [:]
+        var counters: [pid_t: Counters] = [:]
+        var byApp: [String: ProcessUsage] = [:]
 
         for pid in pids.prefix(count) where pid > 0 {
-            var info = rusage_info_v2()
+            // V6 porta anche l'energia (nanojoule); i campi di V2 sono gli stessi, nello stesso posto.
+            var info = rusage_info_v6()
             let result = withUnsafeMutablePointer(to: &info) {
-                $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V2, $0) }
+                $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V6, $0) }
             }
             guard result == 0 else { continue }
             // Su Apple silicon i tempi sono in unità mach, non in nanosecondi.
-            let cpuTime = (info.ri_user_time + info.ri_system_time) * timebase.numer / timebase.denom
-            times[pid] = cpuTime
+            let c = Counters(cpu: (info.ri_user_time + info.ri_system_time) * timebase.numer / timebase.denom,
+                             diskRead: info.ri_diskio_bytesread, diskWrite: info.ri_diskio_byteswritten,
+                             energy: info.ri_energy_nj)
+            counters[pid] = c
 
             var cpu = 0.0
-            if elapsed > 0, let before = previousTime[pid], cpuTime >= before {
-                cpu = Double(cpuTime - before) / elapsed * 100
+            let before = previous[pid]
+            if elapsed > 0, let before, c.cpu >= before.cpu {
+                cpu = Double(c.cpu - before.cpu) / elapsed * 100
             }
             let app = names[pid] ?? appName(pid)
             names[pid] = app
-            let current = byApp[app.name] ?? (cpu: 0, memory: 0, bundle: app.bundle)
-            byApp[app.name] = (current.cpu + cpu, current.memory + info.ri_phys_footprint, current.bundle ?? app.bundle)
+            var usage = byApp[app.name] ?? ProcessUsage(name: app.name, cpu: 0, memory: 0, bundlePath: app.bundle)
+            usage.cpu += cpu
+            usage.memory += info.ri_phys_footprint
+            if usage.bundlePath == nil { usage.bundlePath = app.bundle }
+            if detailed {
+                // Al secondo: differenza tra due letture. Un processo appena nato conta da zero.
+                func rate(_ a: UInt64, _ b: UInt64?) -> Double {
+                    guard elapsed > 0, let b, a >= b else { return 0 }
+                    return Double(a - b) / elapsed * 1e9
+                }
+                usage.diskRead = (usage.diskRead ?? 0) + rate(c.diskRead, before?.diskRead)
+                usage.diskWrite = (usage.diskWrite ?? 0) + rate(c.diskWrite, before?.diskWrite)
+                // nanojoule per nanosecondo = watt
+                var watts = 0.0
+                if elapsed > 0, let before, c.energy >= before.energy { watts = Double(c.energy - before.energy) / elapsed }
+                usage.energy = (usage.energy ?? 0) + watts
+                if let network {
+                    let n = network[pid]
+                    usage.netIn = (usage.netIn ?? 0) + (n?.down ?? 0)
+                    usage.netOut = (usage.netOut ?? 0) + (n?.up ?? 0)
+                }
+            }
+            byApp[app.name] = usage
         }
 
-        previousTime = times
-        names = names.filter { times[$0.key] != nil }
+        previous = counters
+        names = names.filter { counters[$0.key] != nil }
         lastTime = now
 
-        let all = byApp.map {
-            ProcessUsage(name: $0.key, cpu: $0.value.cpu, memory: $0.value.memory, bundlePath: $0.value.bundle)
+        let all = Array(byApp.values)
+        var lists = [all.sorted { $0.cpu > $1.cpu }.prefix(limit), all.sorted { $0.memory > $1.memory }.prefix(limit)]
+        if detailed {
+            lists.append(all.sorted { ($0.energy ?? 0) > ($1.energy ?? 0) }.prefix(limit))
+            lists.append(all.sorted { $0.disk > $1.disk }.prefix(limit))
+            if network != nil { lists.append(all.sorted { $0.net > $1.net }.prefix(limit)) }
         }
-        let byCPU = all.sorted { $0.cpu > $1.cpu }.prefix(limit)
-        let byMemory = all.sorted { $0.memory > $1.memory }.prefix(limit)
-        // Le prime per CPU e le prime per memoria, senza doppioni: servono entrambe le classifiche.
+        // Le prime di ogni classifica, senza doppioni: servono tutte.
         var seen = Set<String>()
-        return (Array(byCPU) + Array(byMemory)).filter { seen.insert($0.name).inserted }
+        return lists.flatMap { Array($0) }.filter { seen.insert($0.name).inserted }
     }
 
     /// Il nome dell'app più esterna che contiene l'eseguibile (con il percorso dell'app, per chiuderla), altrimenti il

@@ -15,13 +15,13 @@ project, not affiliated with Cocaine. Inspired by [Stats](https://mac-stats.com)
 
 | Reading | Details |
 |---|---|
-| CPU | user and system, per-core load (advanced mode), busiest apps |
+| CPU | user and system, processor, load average, uptime, per-core load (advanced mode), busiest apps |
 | Memory | pressure, app, wired, compressed, swap, apps using the most memory |
 | Network | download and upload speed, traffic since launch, local address |
 | Temperature | chip and GPU; every sensor in advanced mode |
 | GPU | usage and memory (advanced mode) |
 | Disk | free and used space |
-| Battery and power | level, time left, health, cycles, watts; whole-Mac power where macOS exposes it |
+| Battery and power | level, time left, health, capacity, cycles; power adapter and power flow (what comes in, what goes to the battery); whole-Mac power where macOS exposes it |
 
 By default the menu bar shows CPU, RAM and NET. In Settings › Menu Bar you pick readings, order and style (numbers, or
 numbers with a tiny bar graph), spacing and colors (a red-to-green scale, or three colors of your choice), with a preview
@@ -46,10 +46,14 @@ alert):
 
 - **Space**: a map of your disk like [GrandPerspective](https://grandperspective.sourceforge.net), each rectangle as big
   as the space it takes, colored by kind. On the right, tips: app caches, projects idle for over a month (node_modules,
-  .build, DerivedData), installers already used, iPhone backups, large files not opened in 6 months. What you remove
-  goes to the Trash, always after a confirmation. With Full Disk Access the map also sees Mail, Messages, Safari and
-  backups.
-- **Apps**: what's heavy on memory and what keeps the CPU busy, with Quit and Force Quit.
+  .build, DerivedData), developer tool caches (npm, pip, Cargo, Gradle, Homebrew…), installers already used, iPhone
+  backups, large files not opened in 6 months. What you remove goes to the Trash, always after a confirmation. With
+  Full Disk Access the map also sees Mail, Messages, Safari and backups. Plus Search the whole Mac: files by name with
+  Spotlight, even without reading the disk.
+- **Apps**: what's heavy on memory, keeps the CPU busy, uses energy, works the disk or uses the network, with Quit and
+  Force Quit.
+- **Uninstall**: installed apps with size and last use; for each one, what it left in the Library (data, caches,
+  preferences, containers, launch agents). The app and the chosen leftovers go to the Trash, after a confirmation.
 - **Mole**: if you have [Mole](https://github.com/tw93/Mole) (`brew install mole`), preview and clean with `mo clean`
   and maintenance with `mo optimize`, inside the app. Mole is a separate program (GPL-3.0): we call it, we don't bundle
   it.
@@ -105,7 +109,9 @@ Settings › Feedback (or right-click the menu bar item › Send Feedback):
 - Apple silicon temperatures come from undocumented IOKit functions (the same ones Stats uses). If a macOS update
   changes them, the Temperature row disappears instead of showing wrong numbers.
 - System processes running as root can't be read without privileges, so they don't appear among the apps.
-- Whole-Mac power is only available where the SMC exposes it.
+- Whole-Mac power is only available where the SMC exposes it; per-app energy and adapter power flow only on Apple
+  silicon.
+- Per-app network comes from macOS's `nettop`, run only while the Apps tool is open.
 - No fans: recent Macs don't need it, and controlling them would require administrator privileges.
 - The app isn't notarized: no Apple Developer account. Published versions are signed with a stable local identity, so
   macOS remembers Full Disk Access across updates.

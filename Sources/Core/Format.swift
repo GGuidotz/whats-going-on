@@ -86,4 +86,12 @@ enum Format {
         let h = total / 60, m = total % 60
         return h > 0 ? L("%d h %02d min", h, m) : L("%d min", m)
     }
+
+    /// Da quanto è acceso: "3 giorni, 4 h", "5 h 20 min".
+    static func uptime(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds / 60)
+        let days = total / 1440
+        if days > 0 { return days == 1 ? L("1 giorno, %d h", total % 1440 / 60) : L("%d giorni, %d h", days, total % 1440 / 60) }
+        return minutes(total)
+    }
 }
