@@ -42,7 +42,7 @@ struct AppsView: View {
         return Array(list.filter { $0.name != "kernel_task" }.prefix(10))
     }
 
-    private var advice: String {
+    private var adviceText: String {
         switch measure {
         case .memory: AppAdvisor.memoryAdvice(s)
         case .cpu: AppAdvisor.cpuAdvice(s)
@@ -56,7 +56,7 @@ struct AppsView: View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 12) {
                 header
-                Text(advice)
+                Text(adviceText)
                     .font(.title3)
                     .fixedSize(horizontal: false, vertical: true)
                     .contentCard(padding: 12)
