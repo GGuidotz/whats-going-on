@@ -1,18 +1,19 @@
-// La finestra degli Attrezzi: Spazio (cosa occupa il disco) e App (memoria e CPU). Si apre solo quando la chiami:
-// dal pannello, da un avviso, dal menu della voce nella barra. Chiusa, se ne va tutto: albero del disco, viste,
+// La finestra degli Attrezzi: Spazio (cosa occupa il disco), App (memoria, CPU, energia, disco e rete) e Disinstalla.
+// Si apre solo quando la chiami: dal pannello, da un avviso, dal menu della voce nella barra. Chiusa, se ne va tutto: albero del disco, viste,
 // consigli. Mole resta nel modello dell'app, così un comando avviato finisce anche a finestra chiusa.
 
 import AppKit
 import SwiftUI
 
 enum ToolsTab: String, CaseIterable, Identifiable {
-    case space, apps
+    case space, apps, uninstall
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .space: L("Spazio")
         case .apps: L("App")
+        case .uninstall: L("Disinstalla")
         }
     }
 
@@ -20,6 +21,7 @@ enum ToolsTab: String, CaseIterable, Identifiable {
         switch self {
         case .space: "internaldrive"
         case .apps: "memorychip"
+        case .uninstall: "xmark.bin"
         }
     }
 }
@@ -32,6 +34,22 @@ final class ToolsState: ObservableObject {
     let space = SpaceModel()
     let spaceAdvice = AdviceModel()
     let appsAdvice = AdviceModel()
+    let uninstall = UninstallModel()
+    let search = SpotlightSearch()
+
+    init() {
+        // Se la mappa dello spazio è già stata letta, le dimensioni delle app si prendono da lì.
+        uninstall.knownSize = { [weak space = self.space] path in
+            MainActor.assumeIsolated {
+                guard let tree = space?.tree, let i = tree.find(path) else { return nil }
+                return tree[i].size
+            }
+        }
+        // Anche ciò che va nel Cestino disinstallando conta in "Recuperati finora".
+        uninstall.onFreed = { [weak space = self.space] bytes in
+            MainActor.assumeIsolated { space?.addFreed(bytes) }
+        }
+    }
 }
 
 @MainActor
@@ -61,6 +79,8 @@ final class ToolsWindowController: NSObject, NSWindowDelegate {
         DispatchQueue.main.async { [weak self] in
             MainActor.assumeIsolated {
                 self?.state?.space.cancel()
+                self?.state?.uninstall.cancel()
+                self?.state?.search.stop()
                 self?.state?.spaceAdvice.reset()
                 self?.state?.appsAdvice.reset()
                 AppModel.shared.monitor.needs.liveProcesses = false
@@ -90,10 +110,13 @@ struct ToolsView: View {
         Group {
             switch state.tab {
             case .space:
-                SpaceView(space: state.space, mole: model.mole, advice: state.spaceAdvice, prefs: prefs)
+                SpaceView(space: state.space, mole: model.mole, advice: state.spaceAdvice, prefs: prefs,
+                          search: state.search)
             case .apps:
                 AppsView(monitor: model.monitor, mole: model.mole, advice: state.appsAdvice, prefs: prefs,
                          measure: $state.measure)
+            case .uninstall:
+                UninstallView(model: state.uninstall)
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -109,7 +132,7 @@ struct ToolsView: View {
     }
 }
 
-/// Le due schede, nella stessa barra di vetro delle impostazioni. ⌘1 e ⌘2.
+/// Le schede, nella stessa barra di vetro delle impostazioni. ⌘1, ⌘2, ⌘3.
 private struct ToolsTabBar: View {
     @Binding var selection: ToolsTab
 

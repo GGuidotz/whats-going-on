@@ -6,6 +6,7 @@
 // - pannello chiuso: CPU, memoria e rete al passo scelto (2 s di predefinito); app ogni 10 s (servono alla frase e
 //   all'avviso "app che consuma"); temperature solo dei sensori del chip e solo se servono (nella barra o con l'avviso
 //   "chip caldo" acceso), ogni 30 s di predefinito; batteria ogni 10 s; spazio su disco ogni minuto;
+// - attrezzo App aperto: le app a ogni lettura, con disco, energia e rete (nettop, al massimo ogni 3 s);
 // - schermi spenti o Mac bloccato: una lettura ogni 10 s, e gli avvisi continuano (sei via: è lì che servono).
 // Il timer ha una tolleranza ampia, così macOS può accorpare i risvegli con quelli delle altre app.
 
@@ -38,6 +39,8 @@ final class Sampler: @unchecked Sendable {
     private let battery = BatteryReader()
     private let processes = ProcessReader()
     private let own = OwnUsageReader()
+    private let appNetwork = AppNetworkReader()
+    private var wasLive = false
     private let gpu = GPUReader()
     private lazy var sensors = SensorReader()
 
@@ -80,8 +83,15 @@ final class Sampler: @unchecked Sendable {
         }
 
         if needs.gpu { s.gpu = gpu.read() }
-        s.processes = (panel || needs.liveProcesses || due("processes", every: 10, now: now))
-            ? processes.read() : last.processes
+        if needs.liveProcesses {
+            // L'attrezzo App: anche disco, energia e rete di ogni app.
+            s.processes = processes.read(detailed: true, network: appNetwork.latest())
+        } else {
+            if wasLive { appNetwork.reset() }
+            s.processes = (panel || due("processes", every: 10, now: now)) ? processes.read() : last.processes
+        }
+        wasLive = needs.liveProcesses
+        if panel { s.load = LoadReader.read() }
         s.ownUsage = own.read()
         last = s
         return s

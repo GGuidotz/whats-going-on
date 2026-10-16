@@ -133,6 +133,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         menu.addItem(withTitle: L("Apri il pannello"), action: #selector(openPanelFromMenu), keyEquivalent: "").target = self
         menu.addItem(withTitle: L("Cosa occupa spazio…"), action: #selector(openSpace), keyEquivalent: "").target = self
         menu.addItem(withTitle: L("Memoria e CPU…"), action: #selector(openApps), keyEquivalent: "").target = self
+        menu.addItem(withTitle: L("Disinstalla app…"), action: #selector(openUninstall), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: L("Impostazioni…"), action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(withTitle: L("Novità e aggiornamenti…"), action: #selector(openUpdates), keyEquivalent: "").target = self
@@ -147,6 +148,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     @objc private func openPanelFromMenu() { showPanel() }
     @objc private func openSpace() { model.showTools(.space) }
     @objc private func openApps() { model.showTools(.apps) }
+    @objc private func openUninstall() { model.showTools(.uninstall) }
     @objc private func openSettings() { model.showSettings(.general) }
     @objc private func openUpdates() { model.showSettings(.updates) }
     @objc private func openFeedback() { model.showSettings(.feedback) }

@@ -1,5 +1,5 @@
-// Attrezzi › App: chi pesa in memoria e chi fa lavorare la CPU, adesso, con il gesto che serve davvero: chiudere
-// l'app. "Chiudi" chiede all'app di chiudersi (salva o chiede di salvare); "Forza chiusura" solo con conferma.
+// Attrezzi › App: chi pesa in memoria, chi fa lavorare la CPU, chi consuma energia, chi legge e scrive sul disco e chi
+// usa la rete, adesso, con il gesto che serve davvero: chiudere l'app. "Chiudi" chiede all'app di chiudersi (salva o chiede di salvare); "Forza chiusura" solo con conferma.
 // Si chiudono solo le app con l'icona nel Dock; per i processi di sistema c'è Monitoraggio Attività.
 // Mentre questa scheda è aperta l'elenco si aggiorna a ogni lettura (SamplingNeeds.liveProcesses), poi torna ogni 10 s.
 
@@ -8,12 +8,15 @@ import SwiftUI
 
 struct AppsView: View {
     enum Measure: String, CaseIterable, Identifiable {
-        case memory, cpu
+        case memory, cpu, energy, disk, network
         var id: String { rawValue }
         var title: String {
             switch self {
             case .memory: L("Memoria")
             case .cpu: L("CPU")
+            case .energy: L("Energia")
+            case .disk: L("Disco")
+            case .network: L("Rete")
             }
         }
     }
@@ -28,14 +31,32 @@ struct AppsView: View {
     private var s: Snapshot { monitor.snapshot }
 
     private var apps: [ProcessUsage] {
-        Array((measure == .memory ? s.topByMemory : s.topByCPU).filter { $0.name != "kernel_task" }.prefix(10))
+        let list: [ProcessUsage]
+        switch measure {
+        case .memory: list = s.topByMemory
+        case .cpu: list = s.topByCPU
+        case .energy: list = s.topByEnergy
+        case .disk: list = s.topByDisk
+        case .network: list = s.topByNetwork
+        }
+        return Array(list.filter { $0.name != "kernel_task" }.prefix(10))
+    }
+
+    private var adviceText: String {
+        switch measure {
+        case .memory: AppAdvisor.memoryAdvice(s)
+        case .cpu: AppAdvisor.cpuAdvice(s)
+        case .energy: AppAdvisor.energyAdvice(s)
+        case .disk: AppAdvisor.diskAdvice(s)
+        case .network: AppAdvisor.networkAdvice(s, available: !s.topByNetwork.isEmpty)
+        }
     }
 
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 12) {
                 header
-                Text(measure == .memory ? AppAdvisor.memoryAdvice(s) : AppAdvisor.cpuAdvice(s))
+                Text(adviceText)
                     .font(.title3)
                     .fixedSize(horizontal: false, vertical: true)
                     .contentCard(padding: 12)
@@ -72,6 +93,14 @@ struct AppsView: View {
         }
     }
 
+    private var energyCaption: String {
+        let total = s.topByEnergy.reduce(0) { $0 + ($1.energy ?? 0) }
+        if let watts = s.sensors?.systemWatts ?? s.battery?.systemLoad {
+            return L("Le app adesso: %@ · tutto il Mac: %@", Format.watts(total), Format.watts(watts))
+        }
+        return L("Le app adesso: %@", Format.watts(total))
+    }
+
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
@@ -85,6 +114,20 @@ struct AppsView: View {
                         .font(.title2.weight(.semibold)).fontDesign(.rounded).monospacedDigit()
                     Text(L("Utente %@ · Sistema %@", Format.percent(c.user), Format.percent(c.system)))
                         .font(.callout).foregroundStyle(.secondary)
+                } else if measure == .energy {
+                    Text(L("Energia delle app"))
+                        .font(.title2.weight(.semibold)).fontDesign(.rounded)
+                    Text(energyCaption).font(.callout).foregroundStyle(.secondary).monospacedDigit()
+                } else if measure == .disk {
+                    let apps = s.topByDisk
+                    Text(L("Disco: ↓ %@ · ↑ %@", Format.rate(apps.reduce(0) { $0 + ($1.diskRead ?? 0) }),
+                           Format.rate(apps.reduce(0) { $0 + ($1.diskWrite ?? 0) })))
+                        .font(.title2.weight(.semibold)).fontDesign(.rounded).monospacedDigit()
+                    Text(L("Letture e scritture delle app, adesso")).font(.callout).foregroundStyle(.secondary)
+                } else if measure == .network, let n = s.network {
+                    Text(L("Rete: ↓ %@ · ↑ %@", Format.rate(n.download), Format.rate(n.upload)))
+                        .font(.title2.weight(.semibold)).fontDesign(.rounded).monospacedDigit()
+                    Text(L("Ricevuti e inviati da ogni app, adesso")).font(.callout).foregroundStyle(.secondary)
                 }
             }
             Spacer()
@@ -93,7 +136,7 @@ struct AppsView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 200)
+            .frame(width: 340)
         }
         .padding(.top, 4)
     }
@@ -107,10 +150,34 @@ private struct AppRow: View {
 
     private var running: NSRunningApplication? { AppCloser.running(app) }
 
+    /// Quanto è lunga la barra, rispetto alla prima dell'elenco.
+    private var fraction: Double {
+        switch measure {
+        case .memory: Double(app.memory) / Double(max(1, top?.memory ?? 1))
+        case .cpu: app.cpu / max(1, top?.cpu ?? 1)
+        case .energy: (app.energy ?? 0) / max(0.01, top?.energy ?? 0)
+        case .disk: app.disk / max(1, top?.disk ?? 0)
+        case .network: app.net / max(1, top?.net ?? 0)
+        }
+    }
+
+    /// Il valore della misura scelta, in grassetto.
+    private var primary: String {
+        switch measure {
+        case .memory: Format.bytes(app.memory)
+        case .cpu: Format.corePercent(app.cpu)
+        case .energy: Format.watts(app.energy ?? 0)
+        case .disk: "↓ " + Format.rate(app.diskRead ?? 0) + "  ↑ " + Format.rate(app.diskWrite ?? 0)
+        case .network: "↓ " + Format.rate(app.netIn ?? 0) + "  ↑ " + Format.rate(app.netOut ?? 0)
+        }
+    }
+
+    /// Accanto, in grigio: CPU se si guarda la memoria, memoria altrimenti.
+    private var secondary: String {
+        measure == .memory ? Format.corePercent(app.cpu) : Format.bytes(app.memory)
+    }
+
     var body: some View {
-        let fraction = measure == .memory
-            ? Double(app.memory) / Double(max(1, top?.memory ?? 1))
-            : app.cpu / max(1, top?.cpu ?? 1)
         HStack(spacing: 10) {
             Group {
                 if let path = app.bundlePath {
@@ -125,10 +192,10 @@ private struct AppRow: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(app.name).lineLimit(1)
                     Spacer(minLength: 6)
-                    Text(measure == .memory ? Format.bytes(app.memory) : Format.corePercent(app.cpu))
+                    Text(primary)
                         .monospacedDigit().fontWeight(.semibold)
-                    Text(measure == .memory ? Format.corePercent(app.cpu) : Format.bytes(app.memory))
-                        .monospacedDigit().foregroundStyle(.secondary).frame(width: 64, alignment: .trailing)
+                    Text(secondary)
+                        .monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 64, alignment: .trailing)
                 }
                 FillBar(fraction: min(1, fraction), tint: Palette.load(min(1, fraction) * 0.8))
                     .frame(height: 8)

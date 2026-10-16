@@ -3,6 +3,30 @@
 Formato: `## <versione> · <data>`, poi `### Novità`, `### Miglioramenti`, `### Correzioni`, una riga `- ` per
 cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggiornamenti (Sources/App/Changelog.swift).
 
+## 0.6.0 · 2026-10-16
+
+Disinstalla le app per davvero, guarda chi consuma energia, disco e rete, e libera spazio più in fretta.
+
+### Novità
+- **Disinstalla app.** L'app e tutto quello che lascia nella Libreria, anche nella cartella del produttore (Google/Chrome), con peso e ultimo uso. Tutto nel Cestino, con conferma.
+- **Energia, disco e rete per app.** In Attrezzi › App: i watt di ogni app, letture e scritture su disco, dati ricevuti e inviati.
+- **Vista Elenco con selezione multipla.** Accanto alla mappa, una tabella da ordinare per colonna: spunti più voci, anche da cartelle diverse, e le sposti nel Cestino insieme.
+- **Analizza una cartella.** Cartella utente, Download, Documenti o una a scelta, senza leggere tutto il disco.
+- **Filtro per tipo.** Clic su un tipo nella legenda: la mappa mostra solo quello.
+- **Cerca su tutto il Mac.** I file per nome con Spotlight, dal più grande, anche senza leggere il disco.
+- **Recuperati finora.** Quanto hai spostato nel Cestino da quando hai aperto gli Attrezzi.
+- **Alimentazione e processore nel pannello.** Alimentatore e suoi watt, energia verso o dalla batteria, capacità in mAh; nome del processore, carico medio, da quanto è acceso il Mac.
+- **Schermata delle novità.** Dopo ogni aggiornamento, questa pagina; poi in Impostazioni › Aggiornamenti.
+
+### Miglioramenti
+- **Lettura del disco su tutti i core.** Le cartelle si leggono in parallelo e con priorità alta: molto più veloce, soprattutto su Apple silicon.
+- **Cartelle dei progetti.** Riconosciute dal file di progetto e divise per strumento (Node.js, Rust, Swift, Python, Gradle…), ognuna con il comando che la rifà e se si ricompila o si riscarica. Il pulsante grande sposta solo quelle ferme da un mese.
+- **Cache degli strumenti da sviluppatore.** npm, pip, Cargo, Gradle, Homebrew, CocoaPods, Playwright e altri in un solo consiglio: si riscaricano da sole.
+- **Archivi di Xcode.** Un consiglio a parte: non si ricreano, quindi si aprono nel Finder invece di finire nel Cestino.
+
+### Correzioni
+- **Niente più falsi progetti.** Cartelle che si chiamano solo come quelle degli strumenti (Pods, venv, la cache globale ~/.gradle) non sono più proposte come rigenerabili senza il loro file di progetto.
+
 ## 0.5.0 · 2026-10-14
 
 Gli attrezzi: quando il disco è pieno o il Mac rallenta, vedi perché e sistemi da qui.

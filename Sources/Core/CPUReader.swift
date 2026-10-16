@@ -1,6 +1,7 @@
 // Carico della CPU dai contatori del kernel (host_processor_info): la differenza tra due letture, per core.
 
 import Darwin
+import Foundation
 
 final class CPUReader {
     private struct Ticks {
@@ -43,4 +44,29 @@ final class CPUReader {
         guard all > 0 else { return nil }
         return CPUSample(total: busy / all, user: user / all, system: system / all, perCore: perCore)
     }
+}
+
+/// Carico medio e da quanto è acceso il Mac: due chiamate al kernel, solo a pannello aperto.
+enum LoadReader {
+    static func read() -> LoadSample? {
+        var averages = [Double](repeating: 0, count: 3)
+        guard getloadavg(&averages, 3) == 3 else { return nil }
+        var boot = timeval()
+        var size = MemoryLayout<timeval>.stride
+        var uptime: TimeInterval = 0
+        if sysctlbyname("kern.boottime", &boot, &size, nil, 0) == 0, boot.tv_sec > 0 {
+            uptime = max(0, Date().timeIntervalSince1970 - Double(boot.tv_sec))
+        }
+        return LoadSample(one: averages[0], five: averages[1], fifteen: averages[2], uptime: uptime)
+    }
+
+    /// "Apple M2", "Intel(R) Core(TM) i7…": il nome del processore, letto una volta.
+    static let processorName: String? = {
+        var size = 0
+        guard sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0) == 0, size > 1 else { return nil }
+        var buffer = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0) == 0 else { return nil }
+        let name = String(cString: buffer).trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? nil : name
+    }()
 }

@@ -2,7 +2,9 @@
 // Formato:
 //   ## 0.4.0 · 2026-10-13
 //   ### Novità
-//   - Una riga per cambiamento, scritta per chi usa l'app.
+//   - **Titolo breve.** Una riga per cambiamento, scritta per chi usa l'app.
+// La riga semplice sotto il titolo della versione è il riassunto (la schermata Novità la mette in testa); il titolo in
+// grassetto di una voce è quello che la schermata mostra in evidenza.
 // Sezioni previste: Novità, Miglioramenti, Correzioni, Sicurezza, Problemi noti (vanno bene anche i nomi inglesi).
 // Le righe prima di una sezione vanno in "Cambiamenti". Stesso schema di Nod.
 
@@ -30,19 +32,28 @@ struct ChangelogEntry: Identifiable, Equatable {
     let version: String
     let date: String
     let sections: [ChangelogSection]
+    /// La frase sotto il titolo della versione.
+    var summary = ""
     var id: String { version }
 }
 
 enum Changelog {
+    /// Le note nella lingua dell'app: in inglese quelle di CHANGELOG.en.md, e le versioni che lì mancano in italiano.
     static func load(bundle: Bundle = .main) -> [ChangelogEntry] {
-        guard let url = bundle.url(forResource: "CHANGELOG", withExtension: "md"),
-              let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
-        return parse(text)
+        func read(_ name: String) -> [ChangelogEntry] {
+            guard let url = bundle.url(forResource: name, withExtension: "md"),
+                  let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+            return parse(text)
+        }
+        let italian = read("CHANGELOG")
+        guard Localization.effectiveCode.hasPrefix("en") else { return italian }
+        let english = Dictionary(read("CHANGELOG.en").map { ($0.version, $0) }, uniquingKeysWith: { first, _ in first })
+        return italian.map { english[$0.version] ?? $0 }
     }
 
     static func parse(_ text: String) -> [ChangelogEntry] {
         var entries: [ChangelogEntry] = []
-        var version: String?, date = ""
+        var version: String?, date = "", summary = ""
         var sections: [ChangelogSection] = []
         var sectionTitle = "Cambiamenti", items: [String] = []
 
@@ -52,8 +63,11 @@ enum Changelog {
         }
         func flushEntry() {
             flushSection()
-            if let version { entries.append(ChangelogEntry(version: version, date: date, sections: sections)) }
+            if let version {
+                entries.append(ChangelogEntry(version: version, date: date, sections: sections, summary: summary))
+            }
             sections = []
+            summary = ""
             sectionTitle = "Cambiamenti"
         }
 
@@ -71,6 +85,8 @@ enum Changelog {
                 items.append(String(line.dropFirst(2)))
             } else if !line.isEmpty, !line.hasPrefix("#"), version != nil, !items.isEmpty {
                 items[items.count - 1] += " " + line          // una voce che continua sulla riga dopo
+            } else if !line.isEmpty, !line.hasPrefix("#"), version != nil, sections.isEmpty, sectionTitle == "Cambiamenti" {
+                summary += summary.isEmpty ? line : " " + line
             }
         }
         flushEntry()

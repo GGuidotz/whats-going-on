@@ -79,6 +79,14 @@ struct SystemPanel: View {
                   values: h.recent(.cpu, 60), upperBound: 1, tint: Palette.load(Severity.load(c?.total ?? 0)),
                   trend: trendText(h[.cpu]),
                   expanded: binding("cpu")) {
+            if let name = LoadReader.processorName { DetailLine(label: L("Processore"), value: name) }
+            if let load = s.load {
+                DetailLine(label: L("Carico medio (1, 5, 15 min)"),
+                           value: [load.one, load.five, load.fifteen].map { Format.number($0, digits: 2) }.joined(separator: "  "))
+                    .help(L("Quanti processi in media sono pronti a lavorare. Sotto il numero dei core (%d) il Mac sta al passo.",
+                            c?.perCore.count ?? 0))
+                if load.uptime > 0 { DetailLine(label: L("Acceso da"), value: Format.uptime(load.uptime)) }
+            }
             if advanced, let c {
                 DetailHeading(text: L("Core"))
                 CoreBars(cores: c.perCore)
@@ -205,10 +213,21 @@ struct SystemPanel: View {
                   expanded: binding("energy")) {
             if let watts { DetailLine(label: L("Consumo del Mac"), value: Format.watts(watts)) }
             if let b {
-                if let w = b.watts {
-                    DetailLine(label: w >= 0 ? L("Potenza in carica") : L("Potenza dalla batteria"), value: Format.watts(w))
+                if b.onAC, b.adapterWatts != nil || b.adapterName != nil {
+                    DetailHeading(text: L("Alimentazione"))
+                    let name = b.adapterName ?? L("Alimentatore")
+                    DetailLine(label: L("Collegato"), value: b.adapterWatts.map { L("%@ da %d W", name, $0) } ?? name)
                 }
+                if let input = b.powerIn { DetailLine(label: L("Entra dall'alimentatore"), value: Format.watts(input)) }
+                if let load = b.systemLoad, watts == nil { DetailLine(label: L("Consumo del Mac"), value: Format.watts(load)) }
+                if let w = b.watts {
+                    DetailLine(label: w >= 0 ? L("Va alla batteria") : L("Esce dalla batteria"), value: Format.watts(w))
+                }
+                DetailHeading(text: L("Stato della batteria"))
                 if let health = b.health { DetailLine(label: L("Salute"), value: Format.percent(health)) }
+                if let full = b.fullChargeCapacity, let design = b.designCapacity {
+                    DetailLine(label: L("Capacità"), value: L("%d di %d mAh", full, design))
+                }
                 if let cycles = b.cycles { DetailLine(label: L("Cicli"), value: "\(cycles)") }
                 if let t = b.temperature { DetailLine(label: L("Temperatura"), value: Format.celsius(t)) }
             }

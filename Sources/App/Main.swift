@@ -37,7 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         statusItem = item
         model.openPanel = { [weak item] in item?.showPanel() }
         model.didLaunch()
-        if !model.prefs.onboardingDone { model.showOnboarding() }
+        let firstLaunch = !model.prefs.onboardingDone
+        if firstLaunch { model.showOnboarding() }
+        model.showWhatsNewIfUpdated(firstLaunch: firstLaunch)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

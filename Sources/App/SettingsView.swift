@@ -454,6 +454,7 @@ private struct UpdatesSettings: View {
             if let current {
                 Section {
                     ChangelogList(entries: [current])
+                    Button(L("Mostra la schermata delle novità")) { AppModel.shared.showWhatsNew() }
                 } header: {
                     Text(L("Novità di questa versione"))
                 }
