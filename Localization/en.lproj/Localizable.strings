@@ -337,7 +337,6 @@
 "Pressione %@ · swap %@" = "Pressure %@ · swap %@";
 "Prima l'anteprima: vedi cosa toglierebbe." = "Preview first: see what it would remove.";
 "Processo di sistema o senza finestra: si gestisce da Monitoraggio Attività." = "System or background process: manage it from Activity Monitor.";
-"Progetti fermi da più di un mese" = "Projects idle for over a month";
 "Pulire con Mole?" = "Clean with Mole?";
 "Pulisci" = "Clean";
 "Pulizia con Mole" = "Cleanup with Mole";
@@ -368,7 +367,6 @@
 "alta" = "high";
 "critica" = "critical";
 "e altri %d" = "and %d more";
-"node_modules, .build, DerivedData e simili: si ricostruiscono quando riapri il progetto (npm install, swift build, Xcode)." = "node_modules, .build, DerivedData and the like: they're rebuilt when you reopen the project (npm install, swift build, Xcode).";
 "normale" = "normal";
 "tutto il disco" = "the whole disk";
 "La lettura non ha dato una mappa. Apri Debug qui a destra e copiami il testo." = "The scan produced no map. Open Debug on the right and copy the text.";
@@ -575,3 +573,33 @@
 "usata ieri" = "used yesterday";
 "usata oggi" = "used today";
 "uso sconosciuto" = "use unknown";
+
+/* 0.6.0: cartelle, elenco, filtri */
+"%d scelti, %@" = "%d selected, %@";
+"Analizza" = "Analyze";
+"Analizza una cartella" = "Analyze a Folder";
+"Cartella utente" = "Home Folder";
+"Cartelle dei progetti" = "Project folders";
+"Ciò che hai spostato nel Cestino da quando hai aperto gli Attrezzi: lo liberi davvero quando svuoti il Cestino." = "What you've moved to the Trash since you opened Tools: the space is freed when you empty the Trash.";
+"Dipendenze e compilazioni di %@, riconosciute dal file di progetto. Per ognuna è scritto se si ricompila sul Mac o si riscarica, e con quale comando." = "Dependencies and builds from %@, recognized by their project file. Each one says whether it's rebuilt on the Mac or downloaded again, and with which command.";
+"Elenco" = "List";
+"Legge solo la cartella che scegli: più veloce, e la mappa mostra solo quella." = "Reads only the folder you choose: faster, and the map shows just that folder.";
+"Mappa" = "Map";
+"Mappa o elenco: nell'elenco si ordina per colonna e si spuntano più voci per il Cestino." = "Map or list: the list sorts by column and lets you check several items for the Trash.";
+"Mostra solo %@" = "Show only %@";
+"Mostra tutti i tipi" = "Show all types";
+"Questa voce non si sposta da qui" = "This item can't be moved from here";
+"Recuperati finora" = "Recovered so far";
+"Scegli %@" = "Select %@";
+"Scegli la cartella da leggere: la mappa mostrerà solo quella." = "Choose the folder to read: the map will show only that folder.";
+"Scegli per il Cestino" = "Select for the Trash";
+"Scegli una cartella…" = "Choose a Folder…";
+"Sposta nel Cestino quelle ferme da un mese" = "Move Those Idle for a Month to Trash";
+"Togli le spunte" = "Clear Selection";
+"Tutto il disco" = "Whole Disk";
+"Vista" = "View";
+"fermo da %d giorni" = "idle for %d days";
+"fermo da %d mesi" = "idle for %d months";
+"in uso" = "in use";
+"si ricompila con %@" = "rebuilt with %@";
+"si riscarica con %@" = "downloaded again with %@";

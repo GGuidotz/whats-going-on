@@ -21,6 +21,9 @@ struct SpaceTip: Identifiable, Equatable {
     var bytes: Int64
     var items: [FoundItem]
     var action: Action
+    /// Cosa prende il pulsante grande, se non tutti gli elementi (nil: tutti).
+    var bulk: [FoundItem]? = nil
+    var bulkTitle: String? = nil
 }
 
 enum SpaceAdvisor {
@@ -58,12 +61,22 @@ enum SpaceAdvisor {
                                  bytes: total, items: caches, action: .trash))
         }
 
-        // Progetti fermi: dipendenze e prodotti di compilazione si ricostruiscono con un comando.
-        let idle = result.findings.rebuildable.filter { ($0.date ?? .distantPast) < monthsAgo(1) }
-        if !idle.isEmpty {
-            tips.append(SpaceTip(id: "rebuildable", symbol: "hammer", title: L("Progetti fermi da più di un mese"),
-                                 detail: L("node_modules, .build, DerivedData e simili: si ricostruiscono quando riapri il progetto (npm install, swift build, Xcode)."),
-                                 bytes: idle.reduce(0) { $0 + $1.size }, items: idle, action: .trash))
+        // Cartelle dei progetti: dipendenze e prodotti di compilazione, riconosciuti dal file di progetto. Si mostrano
+        // tutte, divise per strumento; il pulsante grande prende solo quelle dei progetti fermi da più di un mese.
+        let projects = result.findings.rebuildable.sorted { a, b in
+            let ta = a.artifact?.tool ?? "", tb = b.artifact?.tool ?? ""
+            return ta != tb ? ta < tb : a.size > b.size
+        }
+        if !projects.isEmpty {
+            let idle = projects.filter { ($0.date ?? .distantPast) < monthsAgo(1) }
+            var perTool: [String: Int64] = [:]
+            for item in projects { perTool[item.artifact?.tool ?? "", default: 0] += item.size }
+            let tools = perTool.sorted { $0.value > $1.value }.map(\.key)
+            tips.append(SpaceTip(id: "rebuildable", symbol: "hammer", title: L("Cartelle dei progetti"),
+                                 detail: L("Dipendenze e compilazioni di %@, riconosciute dal file di progetto. Per ognuna è scritto se si ricompila sul Mac o si riscarica, e con quale comando.",
+                                           tools.prefix(4).joined(separator: ", ")),
+                                 bytes: projects.reduce(0) { $0 + $1.size }, items: projects, action: .trash,
+                                 bulk: idle, bulkTitle: L("Sposta nel Cestino quelle ferme da un mese")))
         }
 
         // Cache degli strumenti da sviluppatore: pacchetti scaricati che il gestore riscarica quando servono.

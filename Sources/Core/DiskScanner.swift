@@ -5,14 +5,15 @@
 // anche un disco con milioni di file resta qualche decina di migliaia di nodi.
 //
 // Lettura con getattrlistbulk: una chiamata restituisce nome, tipo, date e spazio allocato di decine di voci, senza
-// uno stat per file (è il modo più veloce su APFS). Niente link simbolici, i collegamenti fisici contati una volta. Si parte da "/" e si resta sui due volumi del disco di avvio (sistema e dati): i firmlink di APFS
+// uno stat per file (è il modo più veloce su APFS). I primi livelli si leggono in parallelo, una cartella per core:
+// l'SSD regge molte richieste insieme e la lettura dura una frazione. Niente link simbolici, i collegamenti fisici contati una volta. Si parte da "/" e si resta sui due volumi del disco di avvio (sistema e dati): i firmlink di APFS
 // (/Users, /Applications…) portano già ai dati, quindi /System (con /System/Volumes) e i dischi esterni in /Volumes
 // restano fuori.
 // Lo spazio che la lettura non vede (snapshot di Time Machine, volumi di sistema, cartelle protette) diventa un
 // elemento a parte, "Non visibile", perché i conti tornino con lo spazio usato.
 //
 // Durante la lettura si annotano anche le cose che di solito si possono togliere: cartelle rigenerabili dei progetti
-// (node_modules, .build…), installer nei Download, file molto grandi. I consigli li scrive SpaceAdvisor.
+// (node_modules accanto a package.json, target accanto a Cargo.toml…), installer nei Download, file molto grandi. I consigli li scrive SpaceAdvisor.
 
 import Darwin
 import Foundation
@@ -57,8 +58,22 @@ struct FoundItem: Identifiable, Equatable {
     var date: Date?
     /// Un nome da mostrare al posto di quello della cartella ("Cache di npm" per _cacache).
     var label: String? = nil
+    /// Per le cartelle dei progetti: lo strumento che le crea e se si rifanno sul Mac o si riscaricano.
+    var artifact: DevArtifact? = nil
     var id: String { path }
     var name: String { label ?? (path as NSString).lastPathComponent }
+}
+
+/// Una cartella prodotta da uno strumento di sviluppo, riconosciuta dal file di progetto accanto (Cargo.toml per
+/// target, package.json per node_modules…) o dentro (pyvenv.cfg per un ambiente Python). Senza il file non conta:
+/// una cartella "target" o "build" qualsiasi può essere tua.
+struct DevArtifact: Equatable {
+    /// Lo strumento: "Node.js", "Rust"…
+    var tool: String
+    /// true: si riscarica da internet (dipendenze); false: si ricompila sul Mac.
+    var refetch: Bool
+    /// Il comando che la rifà, da mostrare.
+    var command: String
 }
 
 struct ScanFindings {
@@ -122,7 +137,8 @@ struct DiskTree {
 
     /// Il nodo di un percorso, se la lettura lo ha tenuto (le cose piccole sono sommate).
     func find(_ path: String) -> Int? {
-        guard path.hasPrefix(rootPath) else { return nil }
+        let base = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        guard path == rootPath || path.hasPrefix(base) else { return nil }
         var rest = String(path.dropFirst(rootPath.count))
         if rest.hasPrefix("/") { rest.removeFirst() }
         var current = root
@@ -222,6 +238,10 @@ final class DiskScanner: @unchecked Sendable {
         let level: Int
         let context: FileKind?
         let rebuildable: Bool
+        /// Cosa la produce, se è rigenerabile.
+        let artifact: DevArtifact?
+        /// Per gli ambienti Python: il file che deve stare dentro la cartella perché conti.
+        let requires: String?
         let insideRebuildable: Bool
         /// Dentro la cartella utente: solo lì si annotano installer e file grandi.
         let inHome: Bool
@@ -238,17 +258,32 @@ final class DiskScanner: @unchecked Sendable {
         var pendingRebuildable: [Int] = []
         /// Sul volume di sistema (/usr, /bin…): serve a calcolare quanto del sistema resta fuori dalla lettura.
         var onSystemVolume = false
+        /// Manifest trovati in questa cartella (Cargo.toml, pyvenv.cfg…): decidono se una sottocartella è
+        /// davvero il prodotto di uno strumento.
+        var manifests: Set<String> = []
 
-        init(name: String, path: String, level: Int, context: FileKind?, rebuildable: Bool, insideRebuildable: Bool,
-             inHome: Bool, modified: Date?) {
+        init(name: String, path: String, level: Int, context: FileKind?, artifact: DevArtifact?, requires: String?,
+             insideRebuildable: Bool, inHome: Bool, modified: Date?) {
             self.name = name
             self.path = path
             self.level = level
             self.context = context
-            self.rebuildable = rebuildable
+            self.rebuildable = artifact != nil
+            self.artifact = artifact
+            self.requires = requires
             self.insideRebuildable = insideRebuildable
             self.inHome = inHome
             self.modified = modified
+        }
+
+        /// Una copia vuota, con gli stessi caratteri: raccoglie i risultati di un lettore in parallelo.
+        func emptyCopy() -> Frame {
+            let copy = Frame(name: name, path: path, level: level, context: context, artifact: artifact,
+                             requires: requires, insideRebuildable: insideRebuildable, inHome: inHome,
+                             modified: modified)
+            copy.onSystemVolume = onSystemVolume
+            copy.manifests = manifests
+            return copy
         }
     }
 
@@ -280,254 +315,47 @@ final class DiskScanner: @unchecked Sendable {
                 if path == root { rootDevice = st.st_dev }
             }
         }
-        var systemRead: Int64 = 0
         // /System è il volume di sistema sigillato: non si tocca e non si può togliere nulla, quindi non si legge (la
         // lettura è più veloce) e finisce in "Non visibile" con gli snapshot.
         let skipped: Set<String> = ["/System", "/Volumes", "/dev", "/net", "/home", "/Network", "/.vol",
                                     "/.MobileBackups", "/.Spotlight-V100", "/.fseventsd"]
 
-        stats = ScanStats()
-        stats.minKeep = minKeep
-        stats.devices = allowedDevices.sorted()
-
-        var request = attrlist(bitmapcount: 5, reserved: 0,
+        let request = attrlist(bitmapcount: 5, reserved: 0,
                                commonattr: Self.cmnReturned | Self.cmnError | Self.cmnName | Self.cmnObjType
                                    | Self.cmnModTime | Self.cmnAccTime | Self.cmnFileID,
                                volattr: 0, dirattr: 0, fileattr: Self.fileLinkCount | Self.fileAllocSize, forkattr: 0)
-        let bufferSize = 256 * 1024
-        let buffer = UnsafeMutableRawPointer.allocate(byteCount: bufferSize, alignment: 16)
-        defer { buffer.deallocate() }
-
-        var nodes: [DiskNode] = []
-        nodes.reserveCapacity(50_000)
-        var findings = ScanFindings()
-        var seenLinks = Set<UInt64>()
-        var state = ScanProgress()
-        var lastReport = Date.distantPast
-        var rootIndex = -1
-        var stopped = false
-
-        func report(force: Bool = false) {
-            let now = Date()
-            if force || now.timeIntervalSince(lastReport) >= 0.25 {
-                lastReport = now
-                progress(state)
-            }
-        }
-
-        func unreadable(_ path: String, _ code: Int32) {
-            findings.unreadable += 1
-            stats.unreadable += 1
-            if stats.unreadableSamples.count < 15 {
-                stats.unreadableSamples.append(path + " (" + String(cString: strerror(code)) + ")")
-            }
-        }
-
-        /// Chiude una cartella: somma nel genitore, nodo se è abbastanza grande.
-        func close(_ frame: Frame, parent: Frame?) {
-            stats.closed += 1
-            // La cartella decide la data delle cartelle rigenerabili trovate dentro di lei.
-            for i in frame.pendingRebuildable {
-                let latest = max(frame.latest, frame.modified?.timeIntervalSince1970 ?? 0)
-                findings.rebuildable[i].date = latest > 0 ? Date(timeIntervalSince1970: latest) : nil
-            }
-            if frame.rebuildable, frame.size >= 50_000_000, let parent {
-                findings.rebuildable.append(FoundItem(path: frame.path, size: frame.size, date: nil))
-                parent.pendingRebuildable.append(findings.rebuildable.count - 1)
-            }
-            if let parent {
-                parent.size += frame.size
-                parent.items += frame.items + 1
-                for k in 0..<parent.kinds.count { parent.kinds[k] += frame.kinds[k] }
-                if !frame.insideRebuildable || parent.insideRebuildable { parent.latest = max(parent.latest, frame.latest) }
-            }
-            if parent == nil || frame.size >= minKeep {
-                let index = Self.makeNode(frame, in: &nodes)
-                if let parent { parent.kept.append(index) } else { rootIndex = index }
-            } else if let parent {
-                parent.smallSize += frame.size
-                parent.smallItems += frame.items + 1
-            }
-        }
-
-        /// Legge una cartella con getattrlistbulk (una chiamata per decine di voci, niente stat per file), poi scende
-        /// nelle sottocartelle. Ricorsiva: la profondità è quella delle cartelle, poche decine di livelli.
-        func walk(_ path: String, name: String, level: Int, modified: TimeInterval, parent: Frame?) {
-            if stopped { return }
-            if isCancelled {
-                stopped = true
-                stats.cancelled = true
-                return
-            }
-            let fd = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
-            var device: Int32 = -1
-            if fd >= 0 {
-                var st = stat()
-                if fstat(fd, &st) == 0 {
-                    device = st.st_dev
-                    if level > 0, !allowedDevices.contains(device) {
-                        Darwin.close(fd)
-                        stats.otherDevice += 1
-                        return
-                    }
-                }
-            }
-            let rebuildable = !(parent?.insideRebuildable ?? false) && Self.isRebuildable(name, parent: parent?.name)
-            let frame = Frame(name: name, path: path, level: level,
-                              context: Self.context(name, path: path, level: level, parent: parent?.context),
-                              rebuildable: rebuildable,
-                              insideRebuildable: rebuildable || (parent?.insideRebuildable ?? false),
-                              inHome: path.hasPrefix(home + "/"),
-                              modified: modified > 0 ? Date(timeIntervalSince1970: modified) : nil)
-            frame.onSystemVolume = device >= 0 ? device == rootDevice : (parent?.onSystemVolume ?? false)
-            stats.directories += 1
-            if level <= 3 { state.current = path }
-            guard fd >= 0 else {
-                unreadable(path, errno)
-                close(frame, parent: parent)
-                return
-            }
-
-            var subdirs: [(name: String, modified: TimeInterval)] = []
-            while true {
-                let count = getattrlistbulk(fd, &request, buffer, bufferSize, 0)
-                if count < 0 {
-                    stats.errors += 1
-                    unreadable(path, errno)
-                    break
-                }
-                if count == 0 { break }
-                var entry = buffer
-                for _ in 0..<Int(count) {
-                    let length = Int(entry.load(as: UInt32.self))
-                    defer { entry = entry.advanced(by: length) }
-                    let common = entry.loadUnaligned(fromByteOffset: 4, as: UInt32.self)
-                    let fileAttrs = entry.loadUnaligned(fromByteOffset: 4 + 12, as: UInt32.self)
-                    var p = entry.advanced(by: 4 + 20)
-                    if common & Self.cmnError != 0 {
-                        let error = p.loadUnaligned(as: UInt32.self)
-                        p = p.advanced(by: 4)
-                        if error != 0 {
-                            stats.errors += 1
-                            continue
-                        }
-                    }
-                    guard common & Self.cmnName != 0 else { continue }
-                    let nameOffset = Int(p.loadUnaligned(as: Int32.self))
-                    let nameLength = max(0, Int(p.loadUnaligned(fromByteOffset: 4, as: UInt32.self)) - 1)
-                    let namePointer = p.advanced(by: nameOffset).assumingMemoryBound(to: CChar.self)
-                    p = p.advanced(by: 8)
-                    var type: UInt32 = 0
-                    if common & Self.cmnObjType != 0 {
-                        type = p.loadUnaligned(as: UInt32.self)
-                        p = p.advanced(by: 4)
-                    }
-                    var mtime: TimeInterval = 0
-                    if common & Self.cmnModTime != 0 {
-                        mtime = TimeInterval(p.loadUnaligned(as: Int.self))
-                        p = p.advanced(by: 16)
-                    }
-                    var atime: TimeInterval = 0
-                    if common & Self.cmnAccTime != 0 {
-                        atime = TimeInterval(p.loadUnaligned(as: Int.self))
-                        p = p.advanced(by: 16)
-                    }
-                    var fileID: UInt64 = 0
-                    if common & Self.cmnFileID != 0 {
-                        fileID = p.loadUnaligned(as: UInt64.self)
-                        p = p.advanced(by: 8)
-                    }
-                    var links: UInt32 = 1
-                    if fileAttrs & Self.fileLinkCount != 0 {
-                        links = p.loadUnaligned(as: UInt32.self)
-                        p = p.advanced(by: 4)
-                    }
-                    var size: Int64 = 0
-                    if fileAttrs & Self.fileAllocSize != 0 {
-                        size = p.loadUnaligned(as: Int64.self)
-                    }
-
-                    if type == Self.typeDirectory {
-                        subdirs.append((String(cString: namePointer), mtime))
-                        continue
-                    }
-                    if type == Self.typeRegular, links > 1, !seenLinks.insert(fileID).inserted {
-                        stats.hardLinks += 1
-                        continue
-                    }
-                    stats.files += 1
-                    if frame.onSystemVolume { systemRead += size }
-                    state.items += 1
-                    state.bytes += size
-                    frame.size += size
-                    frame.items += 1
-                    let kind: FileKind
-                    if let context = frame.context {
-                        kind = context
-                    } else if type == Self.typeRegular {
-                        kind = Self.kind(name: namePointer, length: nameLength)
-                    } else {
-                        kind = .other
-                    }
-                    frame.kinds[kind.rawValue] += size
-                    if !frame.insideRebuildable { frame.latest = max(frame.latest, mtime) }
-
-                    let used = Date(timeIntervalSince1970: max(mtime, atime))
-                    if size >= minKeep {
-                        let fileName = String(cString: namePointer)
-                        nodes.append(DiskNode(name: fileName, size: size, kind: kind, isDirectory: false, items: 1,
-                                              modified: Date(timeIntervalSince1970: mtime)))
-                        frame.kept.append(nodes.count - 1)
-                        if type == Self.typeRegular, frame.inHome {
-                            let filePath = path + "/" + fileName
-                            if size >= 1_000_000_000 { findings.bigFiles.append(FoundItem(path: filePath, size: size, date: used)) }
-                            if size >= 20_000_000, Self.isInstaller(name: namePointer, length: nameLength) {
-                                findings.installers.append(FoundItem(path: filePath, size: size, date: used))
-                            }
-                        }
-                    } else {
-                        frame.smallSize += size
-                        frame.smallItems += 1
-                        if type == Self.typeRegular, frame.inHome, size >= 20_000_000,
-                           Self.isInstaller(name: namePointer, length: nameLength) {
-                            findings.installers.append(FoundItem(path: path + "/" + String(cString: namePointer),
-                                                                 size: size, date: used))
-                        }
-                    }
-                }
-            }
-            Darwin.close(fd)
-            report()
-
-            let prefix = path.hasSuffix("/") ? path : path + "/"
-            for sub in subdirs {
-                let childPath = prefix + sub.name
-                if level == 0, skipped.contains(childPath) {
-                    stats.skipped += 1
-                    continue
-                }
-                walk(childPath, name: sub.name, level: level + 1, modified: sub.modified, parent: frame)
-                if stopped { return }
-            }
-            close(frame, parent: parent)
-        }
+        let shared = Shared(scanner: self, minKeep: minKeep, home: home, allowedDevices: allowedDevices,
+                            rootDevice: rootDevice, skipped: skipped, request: request, progress: progress)
 
         var rootStat = stat()
         let rootModified = lstat(root, &rootStat) == 0 ? TimeInterval(rootStat.st_mtimespec.tv_sec) : 0
-        walk(root, name: root, level: 0, modified: rootModified, parent: nil)
-        if stopped { return nil }
+        let walker = Walker(shared: shared)
+        walker.nodes.reserveCapacity(50_000)
+        walker.walk(root, name: root, level: 0, modified: rootModified, parent: nil)
 
+        stats = walker.stats
+        stats.minKeep = minKeep
+        stats.devices = allowedDevices.sorted()
+        if isCancelled {
+            stats.cancelled = true
+            return nil
+        }
+        var nodes = walker.nodes
+        var findings = walker.findings
+        let systemRead = walker.systemRead
+        let rootIndex = walker.rootIndex
         stats.nodes = nodes.count
         guard rootIndex >= 0 else {
             stats.failure = "root folder never closed"
             return nil
         }
-        report(force: true)
+        shared.report()
 
         // Ciò che la lettura non vede, diviso dove si può misurare: il resto del volume di sistema, gli altri volumi
         // dello stesso disco (memoria virtuale, avvio, aggiornamenti) e, quello che avanza, snapshot e cartelle protette.
+        // Solo per tutto il disco: di una cartella si legge tutto quello che c'è.
         let hidden = volume.used - nodes[rootIndex].size
-        if hidden > minKeep {
+        if root == "/", hidden > minKeep {
             var pieces: [(String, Int64)] = []
             if let systemUsed = Self.volumeSpaceUsed(root) {
                 pieces.append((L("macOS (volume di sistema)"), systemUsed - systemRead))
@@ -567,6 +395,378 @@ final class DiskScanner: @unchecked Sendable {
         let tree = DiskTree(nodes: nodes, root: rootIndex, rootPath: root)
         return DiskScanResult(tree: tree, findings: findings, used: volume.used, total: volume.total,
                               duration: Date().timeIntervalSince(started))
+    }
+
+    // MARK: - Lettura in parallelo
+
+    /// Ciò che i lettori condividono: impostazioni, collegamenti fisici già visti, avanzamento, buffer.
+    private final class Shared: @unchecked Sendable {
+        let scanner: DiskScanner
+        let minKeep: Int64
+        let home: String
+        let allowedDevices: Set<Int32>
+        let rootDevice: Int32
+        let skipped: Set<String>
+        let request: attrlist
+        /// Fino a questo livello le sottocartelle si leggono in parallelo, una per core: più in basso ogni lettore
+        /// continua da solo, così il lavoro si divide bene senza un lettore per ogni cartellina.
+        let splitDepth = 6
+        static let bufferSize = 128 * 1024
+
+        private let lock = NSLock()
+        private var links = Set<UInt64>()
+        private var state = ScanProgress()
+        private var lastReport = Date.distantPast
+        private var buffers: [UnsafeMutableRawPointer] = []
+        private let progress: (ScanProgress) -> Void
+
+        init(scanner: DiskScanner, minKeep: Int64, home: String, allowedDevices: Set<Int32>, rootDevice: Int32,
+             skipped: Set<String>, request: attrlist, progress: @escaping (ScanProgress) -> Void) {
+            self.scanner = scanner
+            self.minKeep = minKeep
+            self.home = home
+            self.allowedDevices = allowedDevices
+            self.rootDevice = rootDevice
+            self.skipped = skipped
+            self.request = request
+            self.progress = progress
+        }
+
+        deinit { for b in buffers { b.deallocate() } }
+
+        var cancelled: Bool { scanner.isCancelled }
+
+        /// Un file con più collegamenti fisici conta una volta sola, chiunque lo trovi per primo.
+        func firstLink(_ id: UInt64) -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            return links.insert(id).inserted
+        }
+
+        /// Somma ciò che un lettore ha appena letto e, ogni quarto di secondo, lo racconta.
+        func add(items: Int, bytes: Int64, current: String?) {
+            lock.lock()
+            state.items += items
+            state.bytes += bytes
+            if let current { state.current = current }
+            let now = Date()
+            guard now.timeIntervalSince(lastReport) >= 0.25 else {
+                lock.unlock()
+                return
+            }
+            lastReport = now
+            let snapshot = state
+            lock.unlock()
+            progress(snapshot)
+        }
+
+        func report() {
+            lock.lock()
+            let snapshot = state
+            lock.unlock()
+            progress(snapshot)
+        }
+
+        func takeBuffer() -> UnsafeMutableRawPointer {
+            lock.lock()
+            if let buffer = buffers.popLast() {
+                lock.unlock()
+                return buffer
+            }
+            lock.unlock()
+            return UnsafeMutableRawPointer.allocate(byteCount: Self.bufferSize, alignment: 16)
+        }
+
+        func giveBack(_ buffer: UnsafeMutableRawPointer) {
+            lock.lock()
+            buffers.append(buffer)
+            lock.unlock()
+        }
+    }
+
+    /// Un lettore: legge un pezzo d'albero e ne tiene nodi, scoperte e conti. Le sottocartelle dei primi livelli
+    /// vanno a lettori nuovi, in parallelo; finiti, i loro nodi si uniscono a questi.
+    private final class Walker {
+        let shared: Shared
+        var nodes: [DiskNode] = []
+        var findings = ScanFindings()
+        var stats = ScanStats()
+        var systemRead: Int64 = 0
+        var rootIndex = -1
+        /// Per i lettori in parallelo: la copia vuota della cartella genitore, dove si sommano i risultati.
+        var holder: Frame?
+
+        init(shared: Shared) { self.shared = shared }
+
+        private func unreadable(_ path: String, _ code: Int32) {
+            findings.unreadable += 1
+            stats.unreadable += 1
+            if stats.unreadableSamples.count < 15 {
+                stats.unreadableSamples.append(path + " (" + String(cString: strerror(code)) + ")")
+            }
+        }
+
+        /// Chiude una cartella: somma nel genitore, nodo se è abbastanza grande.
+        private func close(_ frame: Frame, parent: Frame?) {
+            stats.closed += 1
+            // La cartella decide la data delle cartelle rigenerabili trovate dentro di lei.
+            for i in frame.pendingRebuildable {
+                let latest = max(frame.latest, frame.modified?.timeIntervalSince1970 ?? 0)
+                findings.rebuildable[i].date = latest > 0 ? Date(timeIntervalSince1970: latest) : nil
+            }
+            if let artifact = frame.artifact, frame.size >= 10_000_000, let parent,
+               frame.requires.map({ frame.manifests.contains($0) }) ?? true {
+                findings.rebuildable.append(FoundItem(path: frame.path, size: frame.size, date: nil, artifact: artifact))
+                parent.pendingRebuildable.append(findings.rebuildable.count - 1)
+            }
+            if let parent {
+                parent.size += frame.size
+                parent.items += frame.items + 1
+                for k in 0..<parent.kinds.count { parent.kinds[k] += frame.kinds[k] }
+                if !frame.insideRebuildable || parent.insideRebuildable { parent.latest = max(parent.latest, frame.latest) }
+            }
+            if parent == nil || frame.size >= shared.minKeep {
+                let index = DiskScanner.makeNode(frame, in: &nodes)
+                if let parent { parent.kept.append(index) } else { rootIndex = index }
+            } else if let parent {
+                parent.smallSize += frame.size
+                parent.smallItems += frame.items + 1
+            }
+        }
+
+        /// Unisce un lettore finito: i suoi nodi in coda ai nostri (con gli indici spostati), i suoi conti nella
+        /// cartella `frame`.
+        private func merge(_ other: Walker, into frame: Frame) {
+            guard let held = other.holder else { return }
+            let offset = nodes.count
+            let rebuildableOffset = findings.rebuildable.count
+            nodes.reserveCapacity(nodes.count + other.nodes.count)
+            for var node in other.nodes {
+                if !node.children.isEmpty { node.children = node.children.map { $0 + offset } }
+                if node.parent >= 0 { node.parent += offset }
+                nodes.append(node)
+            }
+            findings.rebuildable += other.findings.rebuildable
+            findings.installers += other.findings.installers
+            findings.bigFiles += other.findings.bigFiles
+            findings.unreadable += other.findings.unreadable
+            systemRead += other.systemRead
+
+            let s = other.stats
+            stats.directories += s.directories
+            stats.files += s.files
+            stats.closed += s.closed
+            stats.unreadable += s.unreadable
+            stats.errors += s.errors
+            stats.skipped += s.skipped
+            stats.otherDevice += s.otherDevice
+            stats.hardLinks += s.hardLinks
+            for sample in s.unreadableSamples where stats.unreadableSamples.count < 15 {
+                stats.unreadableSamples.append(sample)
+            }
+
+            frame.size += held.size
+            frame.items += held.items
+            for k in 0..<frame.kinds.count { frame.kinds[k] += held.kinds[k] }
+            frame.latest = max(frame.latest, held.latest)
+            frame.smallSize += held.smallSize
+            frame.smallItems += held.smallItems
+            frame.kept += held.kept.map { $0 + offset }
+            frame.pendingRebuildable += held.pendingRebuildable.map { $0 + rebuildableOffset }
+        }
+
+        /// Legge una cartella con getattrlistbulk (una chiamata per decine di voci, niente stat per file), poi scende
+        /// nelle sottocartelle. Ricorsiva: la profondità è quella delle cartelle, poche decine di livelli.
+        func walk(_ path: String, name: String, level: Int, modified: TimeInterval, parent: Frame?) {
+            if shared.cancelled { return }
+            let fd = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+            var device: Int32 = -1
+            if fd >= 0 {
+                var st = stat()
+                if fstat(fd, &st) == 0 {
+                    device = st.st_dev
+                    if level > 0, !shared.allowedDevices.contains(device) {
+                        Darwin.close(fd)
+                        stats.otherDevice += 1
+                        return
+                    }
+                }
+            }
+            let found = (parent?.insideRebuildable ?? true) ? nil : DiskScanner.artifact(name, parent: parent)
+            let frame = Frame(name: name, path: path, level: level,
+                              context: DiskScanner.context(name, path: path, level: level, parent: parent?.context),
+                              artifact: found?.artifact, requires: found?.requires,
+                              insideRebuildable: found != nil || (parent?.insideRebuildable ?? false),
+                              inHome: path.hasPrefix(shared.home + "/"),
+                              modified: modified > 0 ? Date(timeIntervalSince1970: modified) : nil)
+            frame.onSystemVolume = device >= 0 ? device == shared.rootDevice : (parent?.onSystemVolume ?? false)
+            stats.directories += 1
+            guard fd >= 0 else {
+                unreadable(path, errno)
+                close(frame, parent: parent)
+                return
+            }
+
+            let minKeep = shared.minKeep
+            var request = shared.request
+            let buffer = shared.takeBuffer()
+            let bufferSize = Shared.bufferSize
+            var readItems = 0
+            var readBytes: Int64 = 0
+            var subdirs: [(name: String, modified: TimeInterval)] = []
+            while true {
+                let count = getattrlistbulk(fd, &request, buffer, bufferSize, 0)
+                if count < 0 {
+                    stats.errors += 1
+                    unreadable(path, errno)
+                    break
+                }
+                if count == 0 { break }
+                var entry = buffer
+                for _ in 0..<Int(count) {
+                    let length = Int(entry.load(as: UInt32.self))
+                    defer { entry = entry.advanced(by: length) }
+                    let common = entry.loadUnaligned(fromByteOffset: 4, as: UInt32.self)
+                    let fileAttrs = entry.loadUnaligned(fromByteOffset: 4 + 12, as: UInt32.self)
+                    var p = entry.advanced(by: 4 + 20)
+                    if common & DiskScanner.cmnError != 0 {
+                        let error = p.loadUnaligned(as: UInt32.self)
+                        p = p.advanced(by: 4)
+                        if error != 0 {
+                            stats.errors += 1
+                            continue
+                        }
+                    }
+                    guard common & DiskScanner.cmnName != 0 else { continue }
+                    let nameOffset = Int(p.loadUnaligned(as: Int32.self))
+                    let nameLength = max(0, Int(p.loadUnaligned(fromByteOffset: 4, as: UInt32.self)) - 1)
+                    let namePointer = p.advanced(by: nameOffset).assumingMemoryBound(to: CChar.self)
+                    p = p.advanced(by: 8)
+                    var type: UInt32 = 0
+                    if common & DiskScanner.cmnObjType != 0 {
+                        type = p.loadUnaligned(as: UInt32.self)
+                        p = p.advanced(by: 4)
+                    }
+                    var mtime: TimeInterval = 0
+                    if common & DiskScanner.cmnModTime != 0 {
+                        mtime = TimeInterval(p.loadUnaligned(as: Int.self))
+                        p = p.advanced(by: 16)
+                    }
+                    var atime: TimeInterval = 0
+                    if common & DiskScanner.cmnAccTime != 0 {
+                        atime = TimeInterval(p.loadUnaligned(as: Int.self))
+                        p = p.advanced(by: 16)
+                    }
+                    var fileID: UInt64 = 0
+                    if common & DiskScanner.cmnFileID != 0 {
+                        fileID = p.loadUnaligned(as: UInt64.self)
+                        p = p.advanced(by: 8)
+                    }
+                    var links: UInt32 = 1
+                    if fileAttrs & DiskScanner.fileLinkCount != 0 {
+                        links = p.loadUnaligned(as: UInt32.self)
+                        p = p.advanced(by: 4)
+                    }
+                    var size: Int64 = 0
+                    if fileAttrs & DiskScanner.fileAllocSize != 0 {
+                        size = p.loadUnaligned(as: Int64.self)
+                    }
+
+                    if type == DiskScanner.typeDirectory {
+                        subdirs.append((String(cString: namePointer), mtime))
+                        continue
+                    }
+                    if type == DiskScanner.typeRegular {
+                        // Il manifest accanto: la cartella dei prodotti (target, .venv…) conta solo se c'è.
+                        DiskScanner.noteManifest(namePointer, length: nameLength, in: frame)
+                    }
+                    if type == DiskScanner.typeRegular, links > 1, !shared.firstLink(fileID) {
+                        stats.hardLinks += 1
+                        continue
+                    }
+                    stats.files += 1
+                    if frame.onSystemVolume { systemRead += size }
+                    readItems += 1
+                    readBytes += size
+                    frame.size += size
+                    frame.items += 1
+                    let kind: FileKind
+                    if let context = frame.context {
+                        kind = context
+                    } else if type == DiskScanner.typeRegular {
+                        kind = DiskScanner.kind(name: namePointer, length: nameLength)
+                    } else {
+                        kind = .other
+                    }
+                    frame.kinds[kind.rawValue] += size
+                    if !frame.insideRebuildable { frame.latest = max(frame.latest, mtime) }
+
+                    let used = Date(timeIntervalSince1970: max(mtime, atime))
+                    if size >= minKeep {
+                        let fileName = String(cString: namePointer)
+                        nodes.append(DiskNode(name: fileName, size: size, kind: kind, isDirectory: false, items: 1,
+                                              modified: Date(timeIntervalSince1970: mtime)))
+                        frame.kept.append(nodes.count - 1)
+                        if type == DiskScanner.typeRegular, frame.inHome {
+                            let filePath = path + "/" + fileName
+                            if size >= 1_000_000_000 { findings.bigFiles.append(FoundItem(path: filePath, size: size, date: used)) }
+                            if size >= 20_000_000, DiskScanner.isInstaller(name: namePointer, length: nameLength) {
+                                findings.installers.append(FoundItem(path: filePath, size: size, date: used))
+                            }
+                        }
+                    } else {
+                        frame.smallSize += size
+                        frame.smallItems += 1
+                        if type == DiskScanner.typeRegular, frame.inHome, size >= 20_000_000,
+                           DiskScanner.isInstaller(name: namePointer, length: nameLength) {
+                            findings.installers.append(FoundItem(path: path + "/" + String(cString: namePointer),
+                                                                 size: size, date: used))
+                        }
+                    }
+                }
+            }
+            Darwin.close(fd)
+            shared.giveBack(buffer)
+            shared.add(items: readItems, bytes: readBytes, current: level <= 3 ? path : nil)
+
+            let prefix = path.hasSuffix("/") ? path : path + "/"
+            var children: [(path: String, name: String, modified: TimeInterval)] = []
+            for sub in subdirs {
+                let childPath = prefix + sub.name
+                if level == 0, shared.skipped.contains(childPath) {
+                    stats.skipped += 1
+                    continue
+                }
+                children.append((childPath, sub.name, sub.modified))
+            }
+
+            if level < shared.splitDepth, children.count > 1 {
+                // In parallelo: un lettore per sottocartella, quanti ne reggono i core. L'ordine dei risultati resta
+                // quello delle cartelle, così la mappa è la stessa a ogni lettura.
+                let jobs = children
+                let shared = shared
+                var results = [Walker?](repeating: nil, count: jobs.count)
+                results.withUnsafeMutableBufferPointer { buffer in
+                    // Ogni lettore scrive solo la sua casella: niente lucchetto.
+                    let out = buffer
+                    DispatchQueue.concurrentPerform(iterations: jobs.count) { i in
+                        let child = jobs[i]
+                        let walker = Walker(shared: shared)
+                        let held = frame.emptyCopy()
+                        walker.holder = held
+                        walker.walk(child.path, name: child.name, level: level + 1, modified: child.modified, parent: held)
+                        out[i] = walker
+                    }
+                }
+                if shared.cancelled { return }
+                for case let walker? in results { merge(walker, into: frame) }
+            } else {
+                for child in children {
+                    walk(child.path, name: child.name, level: level + 1, modified: child.modified, parent: frame)
+                    if shared.cancelled { return }
+                }
+            }
+            close(frame, parent: parent)
+        }
     }
 
     /// Crea il nodo di una cartella chiusa: i figli tenuti, più un elemento con la somma dei piccoli.
@@ -622,13 +822,53 @@ final class DiskScanner: @unchecked Sendable {
         return nil
     }
 
-    /// Cartelle che si ricostruiscono: dipendenze e prodotti di compilazione.
-    private static func isRebuildable(_ name: String, parent: String?) -> Bool {
-        switch name {
-        case "node_modules", ".build", "Pods", ".venv", "venv", ".next", ".nuxt", ".svelte-kit", ".turbo", ".gradle":
-            return true
-        case "DerivedData": return parent == "Xcode"
-        default: return false
+    /// Cartelle che si ricostruiscono: dipendenze e prodotti di compilazione, solo se c'è il file di progetto che le
+    /// spiega. `requires`: il file che deve stare dentro la cartella stessa (si controlla quando la si chiude).
+    private static func artifact(_ name: String, parent: Frame?) -> (artifact: DevArtifact, requires: String?)? {
+        guard let parent else { return nil }
+        let m = parent.manifests
+        func make(_ tool: String, _ refetch: Bool, _ command: String) -> (artifact: DevArtifact, requires: String?) {
+            (DevArtifact(tool: tool, refetch: refetch, command: command), nil)
+        }
+        // Un "where" in un case con più nomi vale solo per l'ultimo: per questo un if per strumento.
+        let node = m.contains("package.json")
+        let gradle = m.contains("build.gradle") || m.contains("build.gradle.kts") || m.contains("settings.gradle")
+            || m.contains("settings.gradle.kts")
+        if node, name == "node_modules" { return make("Node.js", true, "npm install") }
+        if node, [".next", ".nuxt", ".svelte-kit", ".turbo", ".parcel-cache", ".angular"].contains(name) {
+            return make("Node.js", false, "npm run build")
+        }
+        if name == ".build", m.contains("Package.swift") { return make("Swift", false, "swift build") }
+        if name == "target", m.contains("Cargo.toml") { return make("Rust", false, "cargo build") }
+        if name == "target", m.contains("pom.xml") { return make("Maven", false, "mvn package") }
+        if gradle, name == "build" || name == ".gradle" { return make("Gradle", false, "gradle build") }
+        if name == "Pods", m.contains("Podfile") { return make("CocoaPods", true, "pod install") }
+        if name == ".dart_tool", m.contains("pubspec.yaml") { return make("Flutter", true, "flutter pub get") }
+        if name == "obj" || name == "bin", m.contains("*.csproj") { return make(".NET", false, "dotnet build") }
+        if name == ".venv" || name == "venv" {
+            return (DevArtifact(tool: "Python", refetch: true, command: "pip install"), "pyvenv.cfg")
+        }
+        if name == "DerivedData", parent.name == "Xcode" { return make("Xcode", false, "Xcode") }
+        return nil
+    }
+
+    /// I file di progetto che spiegano le cartelle qui sopra. Si guardano per ogni file, quindi prima la lunghezza.
+    private static let manifestNames: [[UInt8]] = ["package.json", "Package.swift", "Cargo.toml", "pom.xml",
+                                                   "build.gradle", "build.gradle.kts", "settings.gradle",
+                                                   "settings.gradle.kts", "Podfile", "pubspec.yaml", "pyvenv.cfg"]
+        .map { Array($0.utf8) }
+    private static let manifestLengths = Set(manifestNames.map(\.count))
+    private static let dotnetKeys: Set<UInt64> = Set(["csproj", "fsproj", "vbproj"].map { extKey(Array($0.utf8)) })
+
+    private static func noteManifest(_ name: UnsafeMutablePointer<CChar>, length: Int, in frame: Frame) {
+        if manifestLengths.contains(length) {
+            for manifest in manifestNames where manifest.count == length && memcmp(name, manifest, length) == 0 {
+                frame.manifests.insert(String(decoding: manifest, as: UTF8.self))
+                return
+            }
+        }
+        if length > 7, let key = extensionKey(name, length: length), dotnetKeys.contains(key) {
+            frame.manifests.insert("*.csproj")
         }
     }
 

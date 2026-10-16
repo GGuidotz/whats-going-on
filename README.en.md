@@ -45,15 +45,17 @@ On demand, in their own window (⌘T from the panel, the buttons in the Disk, Me
 alert):
 
 - **Space**: a map of your disk like [GrandPerspective](https://grandperspective.sourceforge.net), each rectangle as big
-  as the space it takes, colored by kind. On the right, tips: app caches, projects idle for over a month (node_modules,
-  .build, DerivedData), developer tool caches (npm, pip, Cargo, Gradle, Homebrew…), installers already used, iPhone
+  as the space it takes, colored by kind (click a kind in the legend to see only that), or a sortable list with
+  checkboxes for the Trash. It reads the whole disk on every core, or just one folder. On the right, tips: app caches,
+  project folders recognized by their project file (node_modules, target, .venv, DerivedData…) with the tool and command
+  that rebuilds them, developer tool caches (npm, pip, Cargo, Gradle, Homebrew…), installers already used, iPhone
   backups, large files not opened in 6 months. What you remove goes to the Trash, always after a confirmation. With
   Full Disk Access the map also sees Mail, Messages, Safari and backups. Plus Search the whole Mac: files by name with
   Spotlight, even without reading the disk.
 - **Apps**: what's heavy on memory, keeps the CPU busy, uses energy, works the disk or uses the network, with Quit and
   Force Quit.
 - **Uninstall**: installed apps with size and last use; for each one, what it left in the Library (data, caches,
-  preferences, containers, launch agents). The app and the chosen leftovers go to the Trash, after a confirmation.
+  preferences, containers, launch agents, including the vendor's folder). The app and the chosen leftovers go to the Trash, after a confirmation.
 - **Mole**: if you have [Mole](https://github.com/tw93/Mole) (`brew install mole`), preview and clean with `mo clean`
   and maintenance with `mo optimize`, inside the app. Mole is a separate program (GPL-3.0): we call it, we don't bundle
   it.

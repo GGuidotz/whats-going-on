@@ -78,6 +78,8 @@ struct MapRender {
         var dark: Bool
         var scale: CGFloat
         var detail: MapDetail
+        /// Un tipo scelto nella legenda: gli altri si spengono in grigio.
+        var highlight: FileKind?
     }
 
     var key: Key
@@ -167,6 +169,13 @@ enum TreemapRenderer {
         let detailFont = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular)
         var palette: [FileKind: (fill: CGColor, folder: CGColor, ink: CGColor)] = [:]
         for kind in FileKind.allCases {
+            if let highlight = key.highlight, highlight != kind {
+                // Spento: grigio tenue, il testo resta leggibile.
+                palette[kind] = (CGColor(gray: dark ? 0.32 : 0.82, alpha: 1),
+                                 CGColor(gray: dark ? 1 : 0, alpha: 0.04),
+                                 CGColor(gray: dark ? 1 : 0, alpha: 0.55))
+                continue
+            }
             let base = kind.nsColor
             palette[kind] = (base.cgColor,
                              base.withAlphaComponent(dark ? 0.20 : 0.16).cgColor,
@@ -345,6 +354,7 @@ struct SpaceMapView: View {
             .onChange(of: space.revision) { _, _ in request(geo.size) }
             .onChange(of: scheme) { _, _ in request(geo.size) }
             .onChange(of: space.detail) { _, _ in request(geo.size) }
+            .onChange(of: space.kindFilter) { _, _ in request(geo.size) }
             .onChange(of: renderer.render?.cells.count ?? 0) { _, count in
                 space.mapCells = count
                 space.mapSize = geo.size
@@ -369,7 +379,8 @@ struct SpaceMapView: View {
 
     private func request(_ size: CGSize) {
         renderer.request(tree, MapRender.Key(focus: space.focus, size: size, revision: space.revision,
-                                             dark: scheme == .dark, scale: displayScale, detail: space.detail))
+                                             dark: scheme == .dark, scale: displayScale, detail: space.detail,
+                                             highlight: space.kindFilter))
     }
 
     /// Il punto nelle coordinate dell'immagine (durante un ridimensionamento l'immagine è ancora quella vecchia).
@@ -467,7 +478,17 @@ struct SpaceToolbar: View {
                 tool(L("Sposta nel Cestino"), "trash", key: .delete, enabled: space.canTrashSelection) { space.trashSelection() }
             }
             separator
+            Picker(L("Vista"), selection: $space.showList) {
+                Image(systemName: "square.grid.2x2").accessibilityLabel(L("Mappa")).tag(false)
+                Image(systemName: "list.bullet").accessibilityLabel(L("Elenco")).tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .help(L("Mappa o elenco: nell'elenco si ordina per colonna e si spuntano più voci per il Cestino."))
+            separator
             DetailSlider(space: space)
+                .disabled(space.showList)
             Spacer(minLength: 8)
             HStack(spacing: 4) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)

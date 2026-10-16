@@ -45,6 +45,10 @@ final class ToolsState: ObservableObject {
                 return tree[i].size
             }
         }
+        // Anche ciò che va nel Cestino disinstallando conta in "Recuperati finora".
+        uninstall.onFreed = { [weak space = self.space] bytes in
+            MainActor.assumeIsolated { space?.addFreed(bytes) }
+        }
     }
 }
 

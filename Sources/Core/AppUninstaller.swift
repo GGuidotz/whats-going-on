@@ -2,6 +2,9 @@
 // stato salvato, agenti di avvio). Solo regole note e prudenti:
 // - si cerca per identificativo del bundle (com.azienda.app), che è quasi sempre univoco: questi avanzi sono proposti
 //   già scelti;
+// - si cerca nelle cartelle dei produttori (Application Support/Google/Chrome): il produttore viene dall'identificativo
+//   (com.google.Chrome) e dentro si prende solo la cartella con il nome esatto dell'app, così Google Drive o le altre
+//   app dello stesso produttore restano dove sono;
 // - si cerca anche per nome della cartella uguale al nome dell'app, solo in Application Support, Caches e Logs: può
 //   essere di un'altra app dello stesso produttore, quindi si propone ma non è scelto;
 // - ciò che sta fuori dalla tua cartella utente (/Library) si mostra soltanto: per toglierlo serve la password, dal Finder.
@@ -31,6 +34,8 @@ struct Leftover: Identifiable, Equatable {
     enum Match: Equatable {
         /// Il nome contiene l'identificativo dell'app: è suo.
         case bundleID
+        /// Nella cartella del produttore, con il nome esatto dell'app (Google/Chrome): è sua.
+        case vendor
         /// Una cartella con lo stesso nome dell'app: probabile, da guardare.
         case name
     }
@@ -41,11 +46,17 @@ struct Leftover: Identifiable, Equatable {
     /// Fuori dalla cartella utente: si toglie dal Finder, con la password.
     var needsAdmin: Bool
     var id: String { path }
-    var name: String { (path as NSString).lastPathComponent }
+    var name: String {
+        let last = (path as NSString).lastPathComponent
+        guard match == .vendor else { return last }
+        return ((path as NSString).deletingLastPathComponent as NSString).lastPathComponent + "/" + last
+    }
 
     /// Dove sta, in parole: "Application Support", "Preferenze"…
     var place: String {
-        let parent = ((path as NSString).deletingLastPathComponent as NSString).lastPathComponent
+        var folder = (path as NSString).deletingLastPathComponent
+        if match == .vendor { folder = (folder as NSString).deletingLastPathComponent }
+        let parent = (folder as NSString).lastPathComponent
         switch parent {
         case "Preferences": return L("Preferenze")
         case "Caches": return L("Cache")
@@ -131,7 +142,7 @@ enum AppUninstaller {
         func entries(_ dir: String) -> [String] { (try? fm.contentsOfDirectory(atPath: dir)) ?? [] }
         func add(_ path: String, _ match: Leftover.Match, admin: Bool) {
             guard fm.fileExists(atPath: path), path != app.path else { return }
-            if let existing = found[path], existing.0 == .bundleID { return }
+            if let existing = found[path], existing.0 != .name { return }
             found[path] = (match, admin)
         }
 
@@ -157,6 +168,30 @@ enum AppUninstaller {
                 // Gruppi condivisi: "TEAMID.com.azienda.app" o "group.com.azienda.app".
                 for entry in entries(base + "/Group Containers") where entry.lowercased().hasSuffix("." + lower) {
                     add(base + "/Group Containers/" + entry, .bundleID, admin: admin)
+                }
+            }
+        }
+
+        // Nella cartella del produttore: com.google.Chrome → Google/Chrome, e "Google Chrome" → Google/Chrome.
+        if !app.isApple {
+            var vendors = Set<String>()
+            if let id = app.bundleID {
+                let parts = id.split(separator: ".")
+                if parts.count >= 3, parts[1].count >= 3 { vendors.insert(parts[1].lowercased()) }
+            }
+            let words = app.name.split(separator: " ")
+            if words.count >= 2, words[0].count >= 3 { vendors.insert(words[0].lowercased()) }
+            var names = Set([app.name, app.bundleName].compactMap { $0?.lowercased() })
+            if words.count >= 2 { names.insert(words.dropFirst().joined(separator: " ").lowercased()) }
+            names = names.filter { $0.count >= 3 && !genericNames.contains($0) && !vendors.contains($0) }
+            for base in [home + "/Library", "/Library"] where !vendors.isEmpty && !names.isEmpty {
+                for folder in ["Application Support", "Caches", "Logs"] {
+                    let dir = base + "/" + folder
+                    for vendor in entries(dir) where vendors.contains(vendor.lowercased()) {
+                        for entry in entries(dir + "/" + vendor) where names.contains(entry.lowercased()) {
+                            add(dir + "/" + vendor + "/" + entry, .vendor, admin: base == "/Library")
+                        }
+                    }
                 }
             }
         }

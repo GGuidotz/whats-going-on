@@ -43,15 +43,17 @@ Impostazioni › Generale. Al primo avvio una guida breve aiuta a scegliere cosa
 Su richiesta, in una finestra loro (⌘T dal pannello, i pulsanti nelle righe Disco, Memoria e CPU, il clic su un avviso):
 
 - **Spazio**: una mappa del disco come [GrandPerspective](https://grandperspective.sourceforge.net), ogni rettangolo
-  grande quanto lo spazio che occupa, colorato per tipo. A destra i consigli: cache delle app, progetti fermi da più di
-  un mese (node_modules, .build, DerivedData), cache degli strumenti da sviluppatore (npm, pip, Cargo, Gradle,
+  grande quanto lo spazio che occupa, colorato per tipo (clic su un tipo nella legenda per vedere solo quello), o un
+  elenco da ordinare con le caselle per il Cestino. Legge tutto il disco usando tutti i core, o solo una cartella. A
+  destra i consigli: cache delle app, cartelle dei progetti riconosciute dal file di progetto (node_modules, target,
+  .venv, DerivedData…) con lo strumento e il comando che le rifà, cache degli strumenti da sviluppatore (npm, pip, Cargo, Gradle,
   Homebrew…), installer già usati, backup di iPhone, file grandi non aperti da 6 mesi. Quello che togli va nel Cestino,
   sempre con conferma. Con l'Accesso completo al disco la mappa vede anche Mail, Messaggi, Safari e i backup. In più,
   Cerca su tutto il Mac: i file per nome con Spotlight, anche senza leggere il disco.
 - **App**: chi pesa in memoria, chi fa lavorare la CPU, chi consuma energia, chi lavora sul disco e chi usa la rete,
   con Chiudi e Forza chiusura.
 - **Disinstalla**: le app installate con peso e ultimo uso; per ognuna ciò che ha lasciato nella Libreria (dati, cache,
-  preferenze, contenitori, avvio automatico). App e avanzi scelti vanno nel Cestino, con conferma.
+  preferenze, contenitori, avvio automatico, anche nella cartella del produttore). App e avanzi scelti vanno nel Cestino, con conferma.
 - **Mole**: se hai [Mole](https://github.com/tw93/Mole) (`brew install mole`), anteprima e pulizia con `mo clean` e
   manutenzione con `mo optimize`, dentro l'app. Mole è un programma a parte (GPL-3.0): lo chiamiamo, non lo includiamo.
 - **Apple Intelligence** (sperimentale): consigli scritti dal modello sul Mac, senza rete.

@@ -15,10 +15,16 @@ Disinstalla le app con tutto quello che lasciano, e guarda chi consuma energia, 
 - Pannello › Batteria: l'alimentatore collegato e i suoi watt, quanto entra dall'alimentatore, quanto va alla batteria o ne esce, capacità di oggi e di fabbrica in mAh.
 - Pannello › CPU: nome del processore, carico medio a 1, 5 e 15 minuti, da quanto è acceso il Mac.
 - Clic destro sulla voce nella barra: Disinstalla app.
+- Attrezzi › Spazio: Elenco accanto alla Mappa, una tabella da ordinare per nome, dimensione, elementi, data o tipo, con le caselle per spostare più voci nel Cestino insieme, anche da cartelle diverse.
+- Clic su un tipo nella legenda: la mappa mostra solo quello e spegne gli altri in grigio; l'elenco tiene solo quello.
+- Analizza una cartella: Cartella utente, Download, Documenti o una a scelta. Più veloce di tutto il disco, e la mappa mostra solo quella.
+- Recuperati finora: in alto, quanto hai spostato nel Cestino da quando hai aperto gli Attrezzi, disinstallazioni comprese.
 
 ### Miglioramenti
+- La lettura del disco usa tutti i core: le cartelle dei primi livelli si leggono in parallelo, con priorità alta invece che di sottofondo. Sui Mac Apple silicon lavorano anche i core performance.
+- Cartelle dei progetti al posto di Progetti fermi: riconosciute dal file di progetto (target solo accanto a Cargo.toml o pom.xml, build accanto a build.gradle, .venv solo con pyvenv.cfg, node_modules accanto a package.json, Pods accanto al Podfile), divise per strumento (Node.js, Rust, Swift, Gradle, Maven, CocoaPods, Python, Flutter, .NET, Xcode). Per ognuna è scritto se si ricompila sul Mac o si riscarica, con quale comando e da quanto il progetto è fermo. Si vedono tutte; il pulsante grande sposta solo quelle ferme da un mese.
+- Disinstalla trova anche gli avanzi nelle cartelle del produttore, come Application Support/Google/Chrome, prendendo solo la cartella con il nome dell'app: le altre app dello stesso produttore, come Google Drive, restano dove sono.
 - Gli archivi di Xcode hanno un consiglio a parte: non si ricreano, quindi si aprono nel Finder invece di finire nel Cestino.
-- Progetti fermi: contano anche .nuxt, .svelte-kit e .turbo.
 
 ## 0.5.0 · 2026-10-14
 

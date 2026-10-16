@@ -32,6 +32,14 @@ final class SpaceModel: ObservableObject {
         didSet { if query != oldValue { scheduleSearch() } }
     }
     @Published private(set) var matches: [Int] = []
+    /// Elenco al posto della mappa.
+    @Published var showList = UserDefaults.standard.bool(forKey: "spaceList") {
+        didSet { UserDefaults.standard.set(showList, forKey: "spaceList") }
+    }
+    /// Le voci spuntate nell'elenco, per il Cestino tutte insieme.
+    @Published var checked = Set<Int>()
+    /// Il tipo scelto nella legenda: la mappa spegne gli altri, l'elenco mostra solo quello.
+    @Published var kindFilter: FileKind?
     private(set) var matchSet = Set<Int>()
     /// I file più grandi sotto la cartella mostrata e il percorso dove si concentra lo spazio.
     @Published private(set) var largestFiles: [Int] = []
@@ -47,10 +55,17 @@ final class SpaceModel: ObservableObject {
     @Published private(set) var stats: ScanStats?
     @Published private(set) var lastDuration: TimeInterval?
     @Published var mapCells = 0
+    /// Quanto è finito nel Cestino da quando la finestra è aperta (Spazio, ricerca, Disinstalla).
+    @Published private(set) var freed: Int64 = 0
     @Published var mapSize = CGSize.zero
 
     private var scanner: DiskScanner?
     let home = NSHomeDirectory()
+    /// Da dove parte la lettura: "/" per tutto il disco, o una cartella.
+    @Published private(set) var root = "/"
+    var isWholeDisk: Bool { root == "/" }
+    /// Il nome della radice nella barra del percorso e nelle frasi.
+    var rootTitle: String { isWholeDisk ? volumeName : FileManager.default.displayName(atPath: root) }
 
     var tree: DiskTree? { result?.tree }
 
@@ -65,7 +80,10 @@ final class SpaceModel: ObservableObject {
             ?? "Macintosh HD"
     }
 
-    func start() {
+    /// - root: nil rilegge la stessa radice di prima.
+    func start(root newRoot: String? = nil) {
+        if let newRoot { root = newRoot }
+        let scanRoot = root
         scanner?.cancel()
         fullDiskAccess = FullDiskAccess.granted
         volume = DiskScanner.volume()
@@ -82,12 +100,14 @@ final class SpaceModel: ObservableObject {
         matchSet = []
         largestFiles = []
         hotPath = []
+        kindFilter = nil
+        checked = []
         mapCells = 0
         phase = .scanning(ScanProgress())
-        diag(.app, "space scan started (full disk access: \(fullDiskAccess))")
+        diag(.app, "space scan started (\(scanRoot == "/" ? "whole disk" : "folder"), full disk access: \(fullDiskAccess))")
         let started = Date()
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            let result = scanner.scan { progress in
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = scanner.scan(root: scanRoot) { progress in
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
                         guard let self, self.scanner === scanner, case .scanning = self.phase else { return }
@@ -120,6 +140,19 @@ final class SpaceModel: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Una cartella a scelta, dal pannello del Finder.
+    func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: home)
+        panel.prompt = L("Analizza")
+        panel.message = L("Scegli la cartella da leggere: la mappa mostrerà solo quella.")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        start(root: url.path)
     }
 
     func cancel() {
@@ -227,6 +260,11 @@ final class SpaceModel: ObservableObject {
     }
 
     var canTrashSelection: Bool { selectedPath.map(canTrash) ?? false }
+
+    func trashChecked() {
+        let items = checked.sorted().compactMap { item($0) }
+        trash(items)
+    }
 
     // MARK: - Elenchi e ricerca
 
@@ -348,7 +386,12 @@ final class SpaceModel: ObservableObject {
         }
     }
 
+    func addFreed(_ bytes: Int64) {
+        if bytes > 0 { freed += bytes }
+    }
+
     private func didTrash(_ moved: [FoundItem], failed: [String]) {
+        addFreed(moved.reduce(0) { $0 + $1.size })
         if var result {
             for item in moved { result.tree.remove(item.path, size: item.size) }
             let gone = Set(moved.map(\.path))
@@ -366,6 +409,7 @@ final class SpaceModel: ObservableObject {
                 i = parent
             }
             self.result = result
+            checked.subtract(checked.filter { !result.tree.isAttached($0) })
             tips = SpaceAdvisor.tips(for: result, home: home)
             revision += 1
             history = []
@@ -516,25 +560,61 @@ struct SpaceView: View {
                             ? Double(space.volume.free) / Double(space.volume.total) : 1)))
                     .frame(width: 220, height: 10)
             }
+            if space.freed > 0 {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("Recuperati finora"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(Format.diskBytes(space.freed))
+                        .font(.title3.weight(.semibold))
+                        .fontDesign(.rounded)
+                        .monospacedDigit()
+                }
+                .padding(.leading, 12)
+                .help(L("Ciò che hai spostato nel Cestino da quando hai aperto gli Attrezzi: lo liberi davvero quando svuoti il Cestino."))
+                .accessibilityElement(children: .combine)
+            }
             Spacer()
             switch space.phase {
             case .scanning:
                 Button(L("Interrompi")) { space.cancel() }
                     .glassButton()
             case .idle:
-                Button {
-                    space.start()
-                } label: {
-                    Label(L("Analizza il disco"), systemImage: "magnifyingglass")
+                HStack(spacing: 8) {
+                    Button {
+                        space.start(root: "/")
+                    } label: {
+                        Label(L("Analizza il disco"), systemImage: "magnifyingglass")
+                    }
+                    .glassProminentButton()
+                    .keyboardShortcut("r", modifiers: .command)
+                    folderMenu
                 }
-                .glassProminentButton()
                 .controlSize(.large)
-                .keyboardShortcut("r", modifiers: .command)
             case .done:
-                EmptyView()
+                folderMenu
             }
         }
         .padding(.top, 4)
+    }
+
+    /// Leggere solo una cartella: più veloce, e la mappa mostra solo quella.
+    private var folderMenu: some View {
+        Menu {
+            Button(L("Tutto il disco")) { space.start(root: "/") }
+            Divider()
+            Button(L("Cartella utente")) { space.start(root: space.home) }
+            Button(L("Download")) { space.start(root: space.home + "/Downloads") }
+            Button(L("Documenti")) { space.start(root: space.home + "/Documents") }
+            Divider()
+            Button(L("Scegli una cartella…")) { space.chooseFolder() }
+        } label: {
+            Label(L("Analizza una cartella"), systemImage: "folder")
+        }
+        .menuStyle(.button)
+        .glassButton()
+        .fixedSize()
+        .help(L("Legge solo la cartella che scegli: più veloce, e la mappa mostra solo quella."))
     }
 
     private var accessBanner: some View {
@@ -566,9 +646,15 @@ struct SpaceView: View {
                 SpaceToolbar(space: space)
                 breadcrumbs(tree)
                 headline(tree)
-                SpaceMapView(space: space, pointer: space.pointer, tree: tree)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Group {
+                    if space.showList {
+                        SpaceTableView(space: space, tree: tree)
+                    } else {
+                        SpaceMapView(space: space, pointer: space.pointer, tree: tree)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 legend(tree)
                 MapStatusLine(space: space, pointer: space.pointer, tree: tree)
                 if let message = space.message {
@@ -599,8 +685,15 @@ struct SpaceView: View {
 
     private func scanning(_ p: ScanProgress) -> some View {
         VStack(spacing: 12) {
-            ProgressView(value: min(1, space.volume.used > 0 ? Double(p.bytes) / Double(space.volume.used) : 0))
-                .frame(maxWidth: 420)
+            Group {
+                if space.isWholeDisk {
+                    ProgressView(value: min(1, space.volume.used > 0 ? Double(p.bytes) / Double(space.volume.used) : 0))
+                } else {
+                    // Di una cartella non si sa in anticipo quanto pesa.
+                    ProgressView().progressViewStyle(.linear)
+                }
+            }
+            .frame(maxWidth: 420)
             Text(L("%@ letti, %@ elementi", Format.diskBytes(p.bytes), Format.number(Double(p.items), digits: 0)))
                 .font(.title3)
                 .monospacedDigit()
@@ -624,7 +717,7 @@ struct SpaceView: View {
                         if position > 0 {
                             Image(systemName: "chevron.compact.right").foregroundStyle(.tertiary).accessibilityHidden(true)
                         }
-                        Button(i == tree.root ? space.volumeName : tree[i].name) {
+                        Button(i == tree.root ? space.rootTitle : tree[i].name) {
                             space.go(to: i)
                             space.selection = nil
                         }
@@ -644,7 +737,7 @@ struct SpaceView: View {
     /// Una frase che dice dove sta lo spazio, prima ancora di guardare la mappa.
     @ViewBuilder private func headline(_ tree: DiskTree) -> some View {
         let focus = tree[space.focus]
-        let here = space.focus == tree.root ? space.volumeName : focus.name
+        let here = space.focus == tree.root ? space.rootTitle : focus.name
         if let last = space.hotPath.last, focus.size > 0 {
             let share = Format.percent(Double(tree[last].size) / Double(focus.size))
             let route = space.hotPath.map { tree[$0].name }.joined(separator: " › ")
@@ -676,14 +769,28 @@ struct SpaceView: View {
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 14) {
                 ForEach(shown) { kind in
-                    HStack(spacing: 5) {
-                        RoundedRectangle(cornerRadius: 2.5).fill(kind.color).frame(width: 10, height: 10)
-                            .accessibilityHidden(true)
-                        Text(kind.title).foregroundStyle(.secondary)
-                        Text(Format.diskBytes(totals[kind.rawValue])).monospacedDigit()
+                    let on = space.kindFilter == kind
+                    let off = space.kindFilter != nil && !on
+                    Button {
+                        space.kindFilter = on ? nil : kind
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: on ? "checkmark.square.fill" : "square.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(off ? Color.secondary.opacity(0.5) : kind.color)
+                                .accessibilityHidden(true)
+                            Text(kind.title).foregroundStyle(on ? Color.primary : Color.secondary)
+                                .fontWeight(on ? .semibold : .regular)
+                            Text(Format.diskBytes(totals[kind.rawValue])).monospacedDigit()
+                        }
+                        .font(.caption)
+                        .opacity(off ? 0.6 : 1)
+                        .contentShape(Rectangle())
                     }
-                    .font(.caption)
+                    .buttonStyle(.plain)
+                    .help(on ? L("Mostra tutti i tipi") : L("Mostra solo %@", kind.title))
                     .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(on ? .isSelected : [])
                 }
                 HStack(spacing: 5) {
                     Image(systemName: "square.grid.3x3.middle.filled").foregroundStyle(.secondary).accessibilityHidden(true)
@@ -854,8 +961,15 @@ private struct TipCard: View {
                 HStack(spacing: 8) {
                     switch tip.action {
                     case .trash:
-                        Button(L("Sposta nel Cestino")) { space.trash(tip.items) }
-                            .glassButton()
+                        if let bulk = tip.bulk {
+                            if !bulk.isEmpty {
+                                Button(tip.bulkTitle ?? L("Sposta nel Cestino")) { space.trash(bulk) }
+                                    .glassButton()
+                            }
+                        } else {
+                            Button(L("Sposta nel Cestino")) { space.trash(tip.items) }
+                                .glassButton()
+                        }
                     case .reveal:
                         Button(L("Apri nel Finder")) { space.reveal(tip.items[0].path) }
                             .glassButton()
@@ -873,10 +987,23 @@ private struct TipCard: View {
             }
             if expanded {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(tip.items) { item in
+                    ForEach(Array(tip.items.enumerated()), id: \.element.id) { position, item in
+                        if let tool = item.artifact?.tool, position == 0 || tip.items[position - 1].artifact?.tool != tool {
+                            Text(tool)
+                                .font(.caption.weight(.semibold))
+                                .padding(.top, position == 0 ? 0 : 6)
+                        }
                         HStack(spacing: 6) {
-                            Text(item.name).lineLimit(1).truncationMode(.middle)
-                                .help(item.path)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(item.artifact != nil ? Self.project(item.path) : item.name)
+                                    .lineLimit(1).truncationMode(.middle)
+                                    .help(item.path)
+                                if let artifact = item.artifact {
+                                    Text(Self.note(item, artifact))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
                             Spacer(minLength: 4)
                             Text(Format.diskBytes(item.size)).monospacedDigit().foregroundStyle(.secondary)
                             Button { space.reveal(item.path) } label: { Image(systemName: "magnifyingglass") }
@@ -895,5 +1022,27 @@ private struct TipCard: View {
             }
         }
         .contentCard(padding: 10)
+    }
+
+    /// "progetto/node_modules": il nome del progetto dice di più della cartella, che è sempre la stessa.
+    private static func project(_ path: String) -> String {
+        let parent = ((path as NSString).deletingLastPathComponent as NSString).lastPathComponent
+        return parent + "/" + (path as NSString).lastPathComponent
+    }
+
+    /// Come si rifà e da quanto il progetto è fermo.
+    private static func note(_ item: FoundItem, _ artifact: DevArtifact) -> String {
+        var parts = [artifact.refetch ? L("si riscarica con %@", artifact.command) : L("si ricompila con %@", artifact.command)]
+        if let date = item.date {
+            let days = Int(Date().timeIntervalSince(date) / 86_400)
+            if days >= 60 {
+                parts.append(L("fermo da %d mesi", days / 30))
+            } else if days >= 2 {
+                parts.append(L("fermo da %d giorni", days))
+            } else {
+                parts.append(L("in uso"))
+            }
+        }
+        return parts.joined(separator: " · ")
     }
 }

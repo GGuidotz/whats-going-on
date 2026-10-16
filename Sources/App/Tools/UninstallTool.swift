@@ -36,6 +36,8 @@ final class UninstallModel: ObservableObject {
     private var generation = 0
     /// Dimensioni già note dalla mappa dello spazio, se l'hai letta: si evita di rimisurare.
     var knownSize: ((String) -> Int64?)?
+    /// Byte finiti nel Cestino con una disinstallazione.
+    var onFreed: ((Int64) -> Void)?
 
     var selected: InstalledApp? { apps.first { $0.path == selection } }
 
@@ -123,7 +125,7 @@ final class UninstallModel: ObservableObject {
                 MainActor.assumeIsolated {
                     guard let self, self.generation == current, self.selection == app.path else { return }
                     self.leftovers = found
-                    self.chosen = Set(found.filter { $0.match == .bundleID && !$0.needsAdmin }.map(\.path))
+                    self.chosen = Set(found.filter { $0.match != .name && !$0.needsAdmin }.map(\.path))
                     self.leftoversLoading = false
                 }
             }
@@ -200,6 +202,7 @@ final class UninstallModel: ObservableObject {
                         text += " " + L("Non spostati: %@. Prova dal Finder.", notMoved.prefix(4).joined(separator: ", "))
                     }
                     self.message = text
+                    self.onFreed?(moved)
                     diag(.app, "uninstalled \(app.bundleID ?? app.name), \(notMoved.count) leftovers failed")
                 }
             }
