@@ -69,7 +69,6 @@ struct HistoryCard: View {
     }
 
     var history: LongHistory
-    var diskTotal: Int64?
     @State private var range: Range = .day
     @State private var expanded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -116,7 +115,8 @@ struct HistoryCard: View {
                           tint: Palette.load(0.6), format: { Format.percent($0) })
                     chart(L("Swap"), values: series({ $0.swap }, now), upper: nil,
                           tint: Palette.upload, format: { Format.bytes(UInt64(max(0, $0))) })
-                    chart(L("Spazio libero"), values: series({ $0.diskFree }, now), upper: diskTotal.map(Double.init),
+                    // Lo spazio libero cambia di pochi GB su centinaia: l'asse segue i valori, se no la discesa non si vede.
+                    chart(L("Spazio libero"), values: series({ $0.diskFree }, now), upper: nil, zoomed: true,
                           tint: Palette.download, format: { Format.diskBytes(Int64($0)) })
                 }
                 .transition(.opacity)
@@ -136,9 +136,11 @@ struct HistoryCard: View {
     }
 
     @ViewBuilder
-    private func chart(_ title: String, values: [Double?], upper: Double?, tint: Color,
+    private func chart(_ title: String, values: [Double?], upper: Double?, zoomed: Bool = false, tint: Color,
                        format: @escaping (Double) -> String) -> some View {
         let present = values.compactMap { $0 }
+        let low = present.min() ?? 0, high = present.max() ?? 0
+        let margin = max((high - low) * 0.15, high * 0.002)
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title).font(.caption).foregroundStyle(.secondary)
@@ -150,7 +152,8 @@ struct HistoryCard: View {
                         .monospacedDigit()
                 }
             }
-            TimelineChart(values: values, upperBound: upper, tint: tint)
+            TimelineChart(values: values, upperBound: zoomed ? high + margin : upper,
+                          lowerBound: zoomed ? max(0, low - margin) : 0, tint: tint)
                 .frame(height: 34)
                 .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.04)))
         }

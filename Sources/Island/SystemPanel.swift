@@ -69,7 +69,7 @@ struct SystemPanel: View {
                 diskRow
                 if s.battery != nil || s.sensors?.systemWatts != nil { energyRow }
                 if monitor.keepsHistory {
-                    HistoryCard(history: monitor.longHistory, diskTotal: s.disk?.total)
+                    HistoryCard(history: monitor.longHistory)
                 }
             }
         }

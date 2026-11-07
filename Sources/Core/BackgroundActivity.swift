@@ -2,8 +2,8 @@
 //
 // Perché /bin/ps. Per i processi di root e degli utenti di sistema (_spotlight, _coreaudiod) proc_pid_rusage
 // restituisce -1, e falliscono anche proc_pidinfo(PROC_PIDTASKINFO) e kinfo_proc.p_pctcpu (sempre 0): provato su
-// macOS 27.2. /bin/ps è setuid root e li legge tutti. Costa circa 25 ms di CPU a lettura, per questo si chiama al
-// massimo ogni 30 s a pannello chiuso (circa lo 0,1% di un core) e ogni 10 s a pannello aperto.
+// macOS 27.2. /bin/ps è setuid root e li legge tutti. Costa circa 35 ms di CPU a lettura (misurati, ps compreso), per
+// questo si chiama una volta al minuto a pannello chiuso (circa lo 0,06% di un core) e ogni 10 s a pannello aperto.
 // La %CPU di ps è una media mobile del kernel, che si smorza in circa un minuto: va bene per dire "da quanto", non
 // per i picchi di un secondo (quelli li dà ProcessReader).
 // Spotlight: mdutil dice solo se l'indicizzazione è attiva, non se sta lavorando; lo si capisce dal lavoro dei suoi

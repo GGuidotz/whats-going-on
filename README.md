@@ -45,7 +45,7 @@ Su macOS 26 e successivi pannello, schede e pulsanti sono di Liquid Glass, e l'i
 
 L'obiettivo è restare sotto l'1% di CPU. A pannello chiuso l'app legge solo ciò che mostri nella barra e ciò che serve
 agli avvisi accesi: le temperature, la lettura più pesante, solo dai sensori del chip e di base ogni 30 secondi; l'elenco
-delle app ogni 10; tutti i processi, anche quelli di sistema, con `ps` ogni 30 secondi (circa 25 ms ogni volta). La
+delle app ogni 10; tutti i processi, anche quelli di sistema, con `ps` una volta al minuto (circa 35 ms ogni volta). La
 cronologia lunga prende un punto al minuto dalle stesse letture. Con la barra nascosta non disegna nulla, a schermi spenti rallenta. Quanto pesa davvero lo vedi in
 Impostazioni › Generale. Al primo avvio una guida breve aiuta a scegliere cosa vedere e dove ricevere gli avvisi.
 

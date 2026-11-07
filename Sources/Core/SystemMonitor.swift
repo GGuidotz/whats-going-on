@@ -8,7 +8,7 @@
 //   "chip caldo" acceso), ogni 30 s di predefinito; batteria ogni 10 s; spazio su disco ogni minuto;
 // - attrezzo App aperto: le app a ogni lettura, con disco, energia e rete (nettop, al massimo ogni 3 s);
 // - schermi spenti o Mac bloccato: una lettura ogni 10 s, e gli avvisi continuano (sei via: è lì che servono);
-// - tutti i processi, anche di sistema (ps, BackgroundActivity.swift): ogni 30 s a pannello chiuso, 10 s aperto, per
+// - tutti i processi, anche di sistema (ps, BackgroundActivity.swift): ogni minuto a pannello chiuso, 10 s aperto, per
 //   dire chi lavora da molto e se Spotlight indicizza;
 // - stato termico e da quanto è acceso: a ogni lettura, costano una chiamata ciascuno.
 // La cronologia lunga (LongHistory.swift) prende un punto al minuto dalle stesse letture: nessuna lettura in più.
@@ -100,7 +100,7 @@ final class Sampler: @unchecked Sendable {
         wasLive = needs.liveProcesses
         if panel { s.load = LoadReader.read() }
         if needs.systemProcesses {
-            if due("system", every: panel ? 10 : 30, now: now) {
+            if due("system", every: panel ? 10 : 60, now: now) {
                 if let list = SystemProcessReader.read() {
                     (s.runaways, s.spotlight) = activity.update(list, now: s.date)
                 }

@@ -29,7 +29,7 @@ App macOS per la barra dei menu (Swift/SwiftUI, macOS 14+), companion di Cocaine
   mai copiato. Apple Intelligence dietro `#if canImport(FoundationModels)` e `#available(macOS 26, *)`, collegata
   debole da build.sh.
 - Processi di root e degli utenti di sistema: proc_pid_rusage, proc_pidinfo e kinfo_proc non li leggono (provato su
-  macOS 27.2); si usa `/bin/ps` (setuid) in `Core/BackgroundActivity.swift`, ogni 30 s a pannello chiuso.
+  macOS 27.2); si usa `/bin/ps` (setuid) in `Core/BackgroundActivity.swift`, ogni minuto a pannello chiuso (circa 35 ms a lettura).
 - Cronologia lunga (`Core/LongHistory.swift`): un punto al minuto, 7 giorni, solo numeri, in
   ~/Library/Application Support/What's Going On/history.bin. Mai nomi di app o file lì dentro.
 - "Perché è lento?" (`Core/Diagnosis.swift`): regole fisse; Apple Intelligence riscrive soltanto, non aggiunge cause.

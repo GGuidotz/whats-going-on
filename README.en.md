@@ -45,7 +45,7 @@ On macOS 26 and later the panel, tabs and buttons use Liquid Glass, and the app 
 
 The goal is to stay under 1% CPU. With the panel closed the app only reads what you show in the menu bar and what the
 alerts you turned on need: temperatures, the heaviest reading, only from the chip sensors and every 30 seconds by
-default; the app list every 10; every process, system ones included, with `ps` every 30 seconds (about 25 ms each
+default; the app list every 10; every process, system ones included, with `ps` once a minute (about 35 ms each
 time). The long history takes one point per minute from the same readings. With the menu bar hidden it draws nothing, and with the displays off it slows down. You
 can see how much it really weighs in Settings › General. On first launch a short guide helps you pick what to show and
 where alerts go.

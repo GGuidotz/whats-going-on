@@ -142,7 +142,7 @@ struct Snapshot: Equatable {
     /// What's Going On stessa: quanto pesa adesso.
     var ownUsage: ProcessUsage?
     var load: LoadSample?
-    /// Processi (anche di sistema) che lavorano molto da un po', il più pesante prima. Da ps, ogni 10-30 s.
+    /// Processi (anche di sistema) che lavorano molto da un po', il più pesante prima. Da ps, ogni 10-60 s.
     var runaways: [RunawayProcess] = []
     /// Spotlight sta indicizzando: quanto e da quando.
     var spotlight: SpotlightActivity?
