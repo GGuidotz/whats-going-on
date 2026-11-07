@@ -84,6 +84,8 @@ final class Preferences: ObservableObject {
     @Published var alerts: AlertSettings { didSet { save(alerts, "alerts") } }
     @Published var alertDestination: AlertDestination { didSet { save(alertDestination, "alertDestination") } }
     @Published var autoCheckUpdates: Bool { didSet { defaults.set(autoCheckUpdates, forKey: "autoCheckUpdates") } }
+    /// La cronologia di 7 giorni salvata sul Mac (solo numeri). Spenta: il file si cancella.
+    @Published var keepsHistory: Bool { didSet { defaults.set(keepsHistory, forKey: "keepsHistory") } }
 
     init() {
         func load<T: Decodable>(_ key: String, _ fallback: T) -> T {
@@ -105,9 +107,15 @@ final class Preferences: ObservableObject {
         advanced = UserDefaults.standard.bool(forKey: "advanced")
         intelligence = UserDefaults.standard.bool(forKey: "intelligence")
         language = load("language", AppLanguage.system)
-        alerts = load("alerts", AlertSettings())
+        var alerts = load("alerts", AlertSettings())
+        if (alerts.schema ?? 1) < AlertSettings.currentSchema {
+            alerts.migrate()   // regole di una versione precedente: disco al 15%, tipi nuovi spenti
+            if let data = try? JSONEncoder().encode(alerts) { UserDefaults.standard.set(data, forKey: "alerts") }
+        }
+        self.alerts = alerts
         alertDestination = load("alertDestination", AlertDestination.cocaine)
         autoCheckUpdates = UserDefaults.standard.object(forKey: "autoCheckUpdates") as? Bool ?? true
+        keepsHistory = UserDefaults.standard.object(forKey: "keepsHistory") as? Bool ?? true
         Localization.language = language
         ColorScale.current = colorScale
     }

@@ -162,8 +162,8 @@ enum AlertActions {
     private static func title(_ kind: AlertKind) -> String {
         switch kind {
         case .disk: L("Vedi cosa occupa spazio")
-        case .memory: L("Vedi le app che pesano")
-        case .cpu, .process, .temperature: L("Vedi cosa sta lavorando")
+        case .memory, .swap: L("Vedi le app che pesano")
+        case .cpu, .process, .runaway, .temperature: L("Vedi cosa sta lavorando")
         }
     }
 
@@ -173,8 +173,8 @@ enum AlertActions {
         guard identifier.hasPrefix("wgo."), let kind = AlertKind(rawValue: String(identifier.dropFirst(4))) else { return }
         switch kind {
         case .disk: AppModel.shared.showTools(.space)
-        case .memory: AppModel.shared.showTools(.apps, measure: .memory)
-        case .cpu, .process, .temperature: AppModel.shared.showTools(.apps, measure: .cpu)
+        case .memory, .swap: AppModel.shared.showTools(.apps, measure: .memory)
+        case .cpu, .process, .runaway, .temperature: AppModel.shared.showTools(.apps, measure: .cpu)
         }
     }
 }

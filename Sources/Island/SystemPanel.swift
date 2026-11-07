@@ -42,6 +42,8 @@ struct SystemPanel: View {
     @ObservedObject var monitor: SystemMonitor
     var advanced: Bool
     var tools: PanelTools? = nil
+    /// Sotto la frase: il pulsante "Perché è lento?" e la sua risposta, se chi ospita la pagina li offre.
+    var belowSummary: AnyView? = nil
 
     @State private var expanded: Set<String> = []
 
@@ -57,6 +59,7 @@ struct SystemPanel: View {
         VStack(alignment: .leading, spacing: 14) {
             SummaryHeader(summary: monitor.summary)
                 .padding(.horizontal, 4)
+            if let belowSummary { belowSummary }
             VStack(alignment: .leading, spacing: 8) {
                 cpuRow
                 memoryRow
@@ -65,6 +68,9 @@ struct SystemPanel: View {
                 if advanced, s.gpu != nil { gpuRow }
                 diskRow
                 if s.battery != nil || s.sensors?.systemWatts != nil { energyRow }
+                if monitor.keepsHistory {
+                    HistoryCard(history: monitor.longHistory)
+                }
             }
         }
     }
@@ -85,7 +91,20 @@ struct SystemPanel: View {
                            value: [load.one, load.five, load.fifteen].map { Format.number($0, digits: 2) }.joined(separator: "  "))
                     .help(L("Quanti processi in media sono pronti a lavorare. Sotto il numero dei core (%d) il Mac sta al passo.",
                             c?.perCore.count ?? 0))
-                if load.uptime > 0 { DetailLine(label: L("Acceso da"), value: Format.uptime(load.uptime)) }
+            }
+            if let up = s.uptime ?? s.load?.uptime, up > 0 { DetailLine(label: L("Acceso da"), value: Format.uptime(up)) }
+            DetailLine(label: L("Stato termico"), value: s.thermal.title)
+                .help(L("Come lo dice macOS: quando è alto, il sistema riduce le prestazioni per raffreddarsi."))
+            if let sp = s.spotlight {
+                DetailLine(label: L("Spotlight"), value: L("indicizza da %d min (%@)", sp.minutes(at: s.date), Format.corePercent(sp.cpu)))
+            }
+            let busy = s.runaways.filter { $0.cpu >= Diagnosis.runawayCPU }
+            if !busy.isEmpty {
+                DetailHeading(text: L("Lavorano da molto, anche di sistema"))
+                ForEach(busy.prefix(advanced ? 6 : 3)) { p in
+                    DetailLine(label: p.name, value: L("%@ da %d min", Format.corePercent(p.cpu), p.minutes(at: s.date)))
+                        .help(L("È %@.", p.kind) + " " + Diagnosis.hint(forProcess: p.name, isMacOS: p.isMacOS))
+                }
             }
             if advanced, let c {
                 DetailHeading(text: L("Core"))
@@ -113,12 +132,23 @@ struct SystemPanel: View {
                 DetailLine(label: L("App"), value: Format.bytes(m.app))
                 DetailLine(label: L("Riservata al sistema"), value: Format.bytes(m.wired))
                 DetailLine(label: L("Compressa"), value: Format.bytes(m.compressed))
+                if m.uncompressed > m.compressed {
+                    DetailLine(label: L("Dati nella compressa"), value: Format.bytes(m.uncompressed))
+                        .help(L("Quanta memoria delle app macOS ha compresso per farla stare nella RAM."))
+                }
                 if advanced { DetailLine(label: L("In cache"), value: Format.bytes(m.cached)) }
                 DetailLine(label: L("Swap"), value: Format.bytes(m.swapUsed))
+                if let trend = s.swapTrend, let change = trend.change30 ?? trend.change60 {
+                    DetailLine(label: trend.change30 != nil ? L("Swap negli ultimi 30 min") : L("Swap nell'ultima ora"),
+                               value: Format.signedBytes(change))
+                }
+                if let out = m.swapOutRate, out >= 1_000_000 {
+                    DetailLine(label: L("Scrive nello swap"), value: Format.rate(out))
+                }
             }
             let top = Array(s.topByMemory.prefix(advanced ? 8 : 3))
             if !top.isEmpty {
-                DetailHeading(text: L("App che usano più memoria"))
+                DetailHeading(text: L("App che usano più memoria (compressa inclusa)"))
                 ProcessList(processes: top, measure: .memory)
             }
             if let tools { ToolButton(title: L("Libera memoria…"), symbol: "memorychip", action: tools.memory) }
@@ -195,6 +225,10 @@ struct SystemPanel: View {
             if let d {
                 DetailLine(label: L("Usato"), value: Format.diskBytes(d.total - d.free))
                 DetailLine(label: L("Libero"), value: Format.percent(d.freeFraction))
+                if let f = s.diskForecast {
+                    DetailLine(label: L("Pieno tra"), value: L("circa %@", Format.days(f.daysLeft)))
+                        .help(L("Al ritmo degli ultimi giorni: %@ in meno al giorno.", Format.diskBytes(Int64(f.bytesPerDay))))
+                }
             }
             if let tools { ToolButton(title: L("Cosa occupa spazio…"), symbol: "square.split.2x2", action: tools.space) }
         }

@@ -19,6 +19,12 @@ final class AppModel: ObservableObject {
     @Published var settingsTab: SettingsTab = .general
     /// Apre il pannello della barra (lo imposta AppDelegate): la guida ci porta l'utente alla fine.
     var openPanel: (() -> Void)?
+    /// "Perché è lento?": l'ultima risposta e, se chiesta, la sua riscrittura con Apple Intelligence.
+    @Published private(set) var diagnosis: Diagnosis?
+    let diagnosisAdvice = AdviceModel()
+    /// Gli elementi di avvio, letti all'avvio, ogni ora e quando apri la scheda Avvio.
+    @Published private(set) var startupItems: [StartupItem] = []
+    private var startupTimer: Timer?
 
     private let settingsWindow = SettingsWindowController()
     private let onboardingWindow = OnboardingWindowController()
@@ -64,6 +70,41 @@ final class AppModel: ObservableObject {
     func didLaunch() {
         diag(.app, "launched \(appVersion), macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
         updater.start()
+        refreshStartup()
+        let timer = Timer(timeInterval: 3600, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshStartup() }
+        }
+        timer.tolerance = 600
+        RunLoop.main.add(timer, forMode: .common)
+        startupTimer = timer
+    }
+
+    /// Rilegge gli elementi di avvio in background (qualche decina di file, più launchctl con `withState`).
+    func refreshStartup(withState: Bool = false) {
+        DispatchQueue.global(qos: .utility).async {
+            var items = StartupScanner.scan(appInstalled: { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil })
+            if withState { items = StartupScanner.withState(items) }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self.startupItems = items
+                    self.monitor.startupOrphans = StartupReport(items).orphans
+                }
+            }
+        }
+    }
+
+    /// "Perché è lento?": le cause di adesso, con la tastiera letta al momento. Nessuna lettura continua in più.
+    func diagnose() {
+        let keyboard = KeyboardTapReader.read().map(KeyboardReport.init)
+        let startup = startupItems.isEmpty ? nil : StartupReport(startupItems)
+        diagnosis = Diagnosis.make(monitor.snapshot, keyboard: keyboard, startup: startup)
+        diagnosisAdvice.reset()
+        diag(.app, "diagnosis: \(diagnosis?.causes.count ?? 0) causes")
+    }
+
+    func clearDiagnosis() {
+        diagnosis = nil
+        diagnosisAdvice.reset()
     }
 
     func showSettings(_ tab: SettingsTab?) {
@@ -93,6 +134,7 @@ final class AppModel: ObservableObject {
     private func apply() {
         monitor.interval = prefs.interval
         monitor.alertSettings = prefs.alerts
+        monitor.keepsHistory = prefs.keepsHistory
         // Solo ciò che qualcuno guarda: la barra, gli avvisi accesi, la modalità avanzata.
         var needs = monitor.needs
         needs.gpu = prefs.advanced || prefs.enabledModules.contains(.gpu)

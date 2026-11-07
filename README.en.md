@@ -11,17 +11,27 @@ one for details.
 It's a companion to [Cocaine](https://github.com/Mattiakart/cocaine): alerts can show up in its island. Independent
 project, not affiliated with Cocaine. Inspired by [Stats](https://mac-stats.com).
 
+## Why is it slow?
+
+The **Why Is It Slow?** button under the sentence looks for the causes right now with fixed rules and ranks them, each
+with its numbers and what to do: not enough memory (growing swap, compressed memory), a process busy for a long time
+(macOS and root ones included), Spotlight indexing, disk under 15% with an estimate of when it will be full, heat as
+macOS reports it, apps intercepting the keyboard, orphaned startup items, days since the last restart. The same
+situation always gives the same answer. With Apple Intelligence on (macOS 26), one click rewrites it in plain words, on
+your Mac.
+
 ## What it shows
 
 | Reading | Details |
 |---|---|
-| CPU | user and system, processor, load average, uptime, per-core load (advanced mode), busiest apps |
-| Memory | pressure, app, wired, compressed, swap, apps using the most memory |
+| CPU | user and system, processor, load average, uptime, macOS thermal state, Spotlight indexing, processes busy for a long time (system ones included), per-core load (advanced mode), busiest apps |
+| Memory | pressure, app, wired, compressed and the data it holds, swap with its change over the last 30 minutes and write speed, apps using the most memory (compressed included) |
 | Network | download and upload speed, traffic since launch, local address |
 | Temperature | chip and GPU; every sensor in advanced mode |
 | GPU | usage and memory (advanced mode) |
-| Disk | free and used space |
+| Disk | free and used space, when it will be full at the pace of the last few days |
 | Battery and power | level, time left, health, capacity, cycles; power adapter and power flow (what comes in, what goes to the battery); whole-Mac power where macOS exposes it |
+| History | 24 hours and 7 days of CPU, memory, swap and free space: one point per minute, numbers only, saved on the Mac and deletable in Settings › General |
 
 By default the menu bar shows CPU, RAM and NET. In Settings › Menu Bar you pick readings, order and style (numbers, or
 numbers with a tiny bar graph), spacing and colors (a red-to-green scale, or three colors of your choice), with a preview
@@ -35,7 +45,8 @@ On macOS 26 and later the panel, tabs and buttons use Liquid Glass, and the app 
 
 The goal is to stay under 1% CPU. With the panel closed the app only reads what you show in the menu bar and what the
 alerts you turned on need: temperatures, the heaviest reading, only from the chip sensors and every 30 seconds by
-default; the app list every 10. With the menu bar hidden it draws nothing, and with the displays off it slows down. You
+default; the app list every 10; every process, system ones included, with `ps` once a minute (about 35 ms each
+time). The long history takes one point per minute from the same readings. With the menu bar hidden it draws nothing, and with the displays off it slows down. You
 can see how much it really weighs in Settings › General. On first launch a short guide helps you pick what to show and
 where alerts go.
 
@@ -54,6 +65,11 @@ alert):
   Spotlight, even without reading the disk.
 - **Apps**: what's heavy on memory, keeps the CPU busy, uses energy, works the disk or uses the network, with Quit and
   Force Quit.
+- **Startup**: what starts by itself (LaunchAgents for your user and for all users, LaunchDaemons), with orphans: empty
+  files, programs that are gone, uninstalled apps. Your user's orphaned agents can be disabled or moved to the Trash,
+  after a confirmation; the ones in /Library need an administrator password and are only shown here.
+- **Keyboard**: the apps intercepting keys right now, actively (every keystroke waits for them) or only listening, with
+  the delay measured by macOS. No permissions needed.
 - **Uninstall**: installed apps with size and last use; for each one, what it left in the Library (data, caches,
   preferences, containers, launch agents, including the vendor's folder). The app and the chosen leftovers go to the Trash, after a confirmation.
 - **Mole**: if you have [Mole](https://github.com/tw93/Mole) (`brew install mole`), preview and clean with `mo clean`
@@ -65,8 +81,11 @@ The tools read nothing until you open them.
 
 ## Alerts
 
-With thresholds you choose: high CPU, memory pressure, disk almost full, hot chip, an app using too much. An alert fires
-once when the condition lasts long enough, and comes back only after the value has dropped.
+With thresholds you choose: high CPU, memory pressure, growing swap, disk almost full (under 15%), hot chip, an app
+using too much, a runaway process (system ones included, for over 10 minutes). An alert fires once when the condition
+lasts long enough, and comes back only after the value has dropped. Orphaned startup items, days of uptime and mild heat
+never alert: they stay in the panel and the sentence. If you update from an earlier version, the new kinds start off;
+turn them on in Settings › Alerts.
 
 If you pick Cocaine's island, the alert goes to Cocaine through its `cocaine://alert` link and stays in its recent
 alerts. Cocaine only shows it when you've been away from the Mac for at least 20 seconds, unless **AI alerts › When ›
@@ -110,7 +129,15 @@ Settings › Feedback (or right-click the menu bar item › Send Feedback):
 
 - Apple silicon temperatures come from undocumented IOKit functions (the same ones Stats uses). If a macOS update
   changes them, the Temperature row disappears instead of showing wrong numbers.
-- System processes running as root can't be read without privileges, so they don't appear among the apps.
+- Root processes can't be read through kernel calls without privileges (proc_pid_rusage returns -1). For CPU and
+  duration the app uses `ps`, which macOS installs with the privileges to read them: it gives a moving average over about
+  a minute. Memory, disk and energy of those processes stay out of the app list.
+- Spotlight doesn't say how far indexing has got: it's inferred from the work of its processes.
+- The keyboard tap delay is the one macOS reports; above one second it isn't shown, because on macOS 27 such values also
+  appear for taps never measured. Who holds the Accessibility or Input Monitoring permission without using it lives in a
+  protected database and isn't read.
+- The Login Items list in System Settings needs an administrator password: the Startup tab shows the LaunchAgents and
+  LaunchDaemons files and opens Login Items with a button.
 - Whole-Mac power is only available where the SMC exposes it; per-app energy and adapter power flow only on Apple
   silicon.
 - Per-app network comes from macOS's `nettop`, run only while the Apps tool is open.

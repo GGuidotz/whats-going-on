@@ -104,6 +104,8 @@ private struct GeneralSettings: View {
             }
             .onAppear { fullDiskAccess = FullDiskAccess.granted }
 
+            HistorySettings(prefs: prefs, monitor: monitor)
+
             Section {
                 LabeledContent(L("Consumo di What's Going On")) {
                     Text(monitor.snapshot.ownUsage.map {
@@ -115,6 +117,43 @@ private struct GeneralSettings: View {
             } footer: {
                 Footnote(L("L'obiettivo è restare sotto l'1% di CPU: a pannello chiuso l'app legge solo ciò che mostri nella barra e ciò che serve agli avvisi accesi. Con questa finestra aperta il valore è un po' più alto."))
             }
+        }
+    }
+}
+
+/// La cronologia di 7 giorni: accesa o spenta, quanto copre, cancellala.
+private struct HistorySettings: View {
+    @ObservedObject var prefs: Preferences
+    @ObservedObject var monitor: SystemMonitor
+
+    var body: some View {
+        Section {
+            Toggle(L("Salva la cronologia sul Mac (7 giorni)"), isOn: $prefs.keepsHistory)
+            if prefs.keepsHistory {
+                LabeledContent(L("Copre")) {
+                    if let oldest = monitor.longHistory.oldest {
+                        Text(L("dal %@, %d minuti", oldest.formatted(date: .abbreviated, time: .shortened),
+                               monitor.longHistory.points.count))
+                            .monospacedDigit()
+                    } else {
+                        Text(L("Ancora vuota: il primo punto arriva tra un minuto"))
+                    }
+                }
+            }
+            Button(L("Cancella la cronologia…"), role: .destructive) {
+                let alert = NSAlert()
+                alert.messageText = L("Cancellare la cronologia?")
+                alert.informativeText = L("Si perdono i grafici delle 24 ore e dei 7 giorni, lo swap che cresce e la stima del disco pieno. Le letture riprendono da adesso.")
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: L("Cancella"))
+                alert.addButton(withTitle: L("Annulla"))
+                if alert.runModal() == .alertFirstButtonReturn { monitor.clearHistory() }
+            }
+            .disabled(monitor.longHistory.points.isEmpty)
+        } header: {
+            Text(L("Cronologia"))
+        } footer: {
+            Footnote(L("Un punto al minuto con soli numeri: CPU, memoria, swap, spazio libero, temperatura. Niente nomi di app o di file. Sta in ~/Library/Application Support/What's Going On e non esce dal Mac."))
         }
     }
 }
@@ -334,7 +373,7 @@ private struct AlertsSettings: View {
             } header: {
                 Text(L("Quando avvisare"))
             } footer: {
-                Footnote(L("I sensori di temperatura sono la lettura più pesante: a pannello chiuso si leggono solo se la temperatura è nella barra o l'avviso Chip caldo è acceso, e solo ogni tanto. A pannello aperto si aggiornano ogni secondo."))
+                Footnote(L("Processo fuori controllo segue anche i processi di macOS e i servizi in background, uno per uno; App che consuma troppo segue le app. Elementi di avvio orfani, giorni di accensione e calore lieve non avvisano: li trovi nel pannello.") + " " + L("I sensori di temperatura sono la lettura più pesante: a pannello chiuso si leggono solo se la temperatura è nella barra o l'avviso Chip caldo è acceso, e solo ogni tanto. A pannello aperto si aggiornano ogni secondo."))
             }
 
             Section {
@@ -371,7 +410,7 @@ private struct AlertRuleRow: View {
     var kind: AlertKind
     @Binding var rule: AlertRule
 
-    private static let durations: [Double] = [0, 30, 60, 120, 300, 600]
+    private static let durations: [Double] = [0, 30, 60, 120, 300, 600, 1200, 1800]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -385,7 +424,7 @@ private struct AlertRuleRow: View {
                     } else {
                         Text(L("Quando la pressione è critica")).foregroundStyle(.secondary)
                     }
-                    if kind != .disk {
+                    if kind != .disk && kind != .swap {
                         Picker(L("per"), selection: $rule.duration) {
                             ForEach(Self.durations, id: \.self) { Text(durationTitle($0)).tag($0) }
                         }
@@ -404,6 +443,8 @@ private struct AlertRuleRow: View {
         case .disk: (5...30, 1)
         case .temperature: (70...105, 1)
         case .process: (50...800, 25)
+        case .runaway: (50...400, 10)
+        case .swap: (200...4000, 100)
         case .memory: nil
         }
     }
@@ -415,6 +456,8 @@ private struct AlertRuleRow: View {
         case .disk: return L("Meno del %d%% libero", v)
         case .temperature: return L("Sopra %d°", v)
         case .process: return L("Un'app sopra il %d%% (%@ core)", v, Format.number(rule.threshold / 100, digits: 1))
+        case .runaway: return L("Un processo sopra il %d%%", v)
+        case .swap: return L("Più di %d MB in 30 min", v)
         case .memory: return ""
         }
     }

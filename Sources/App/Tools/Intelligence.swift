@@ -10,7 +10,7 @@ import FoundationModels
 
 @MainActor
 final class AdviceModel: ObservableObject {
-    enum Topic { case space, apps }
+    enum Topic { case space, apps, slow }
 
     enum State: Equatable {
         case idle
@@ -51,10 +51,13 @@ final class AdviceModel: ObservableObject {
             prompt = L("Dati del disco di questo Mac:\n%@\n\nScrivi 4 consigli per liberare spazio, dal più utile (tanto spazio, poco rischio). Ogni consiglio nomina una voce precisa dei dati con la sua dimensione, dice come ridurla (con quale app o impostazione, seguendo la nota della voce) e quanto spazio libera al massimo. Niente consigli generici o già mostrati, niente file di sistema, indice di Spotlight o memoria virtuale. Un consiglio per riga, ogni riga inizia con \"- \".", context)
         case .apps:
             prompt = L("Memoria e CPU di questo Mac adesso:\n%@\n\nScrivi 3 consigli per renderlo più svelto adesso, dal più utile. Ogni consiglio nomina un'app precisa dei dati con quanto pesa e dice cosa fare (seguendo la nota dell'app). Se la memoria va bene e la CPU è tranquilla, dillo in un consiglio e non inventare problemi. Niente consigli generici come riavviare il Mac. Un consiglio per riga, ogni riga inizia con \"- \".", context)
+        case .slow:
+            prompt = L("Le cause trovate su questo Mac, dalla più grave:\n%@\n\nSpiega in 2 o 3 frasi semplici perché il Mac è lento adesso e cosa fare per prima cosa. Usa solo le cause e i numeri dell'elenco, senza aggiungerne. Ogni frase su una riga, ogni riga inizia con \"- \".", context)
         }
         state = .working
+        let instructions = topic == .slow ? Self.explainInstructions : Self.adviceInstructions
         task = Task { [weak self] in
-            let result = await Self.respond(prompt)
+            let result = await Self.respond(prompt, instructions: instructions)
             guard !Task.isCancelled else { return }
             self?.state = result
         }
@@ -65,20 +68,30 @@ final class AdviceModel: ObservableObject {
         state = .idle
     }
 
-    private static func respond(_ prompt: String) async -> State {
+    /// Per "Perché è lento?": riscrive le cause trovate dalle regole, senza aggiungerne.
+    private static let explainInstructions = """
+        You are a calm Mac technician explaining to a non-expert why their Mac is slow. You receive a list of causes \
+        already found by fixed rules, with numbers. Rewrite them as a short plain explanation and the first thing to do. \
+        Never add causes, numbers, apps or settings that are not in the list, and never suggest deleting system files. \
+        Write in the language of the request.
+        """
+
+    private static let adviceInstructions = """
+        You are an expert Mac technician. You read a short report about one Mac and give specific advice \
+        for that Mac only: every tip names an item from the report, its size, the concrete action and \
+        the app or setting to use. Use the notes in the report: they say what each item is and how it \
+        is safely reduced. Never invent items, sizes or settings that are not in the report. Never \
+        suggest deleting system files, the Spotlight index or virtual memory. Each tip is one sentence \
+        under 40 words, written in the language of the request.
+        Example of a good tip: "- ~/Downloads (6,4 GB): open it in the Finder sorted by size and move \
+        the videos you have already watched to an external disk; frees up to 6,4 GB."
+        """
+
+    private static func respond(_ prompt: String, instructions: String) async -> State {
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
             do {
-                let session = LanguageModelSession(instructions: """
-                    You are an expert Mac technician. You read a short report about one Mac and give specific advice \
-                    for that Mac only: every tip names an item from the report, its size, the concrete action and \
-                    the app or setting to use. Use the notes in the report: they say what each item is and how it \
-                    is safely reduced. Never invent items, sizes or settings that are not in the report. Never \
-                    suggest deleting system files, the Spotlight index or virtual memory. Each tip is one sentence \
-                    under 40 words, written in the language of the request.
-                    Example of a good tip: "- ~/Downloads (6,4 GB): open it in the Finder sorted by size and move \
-                    the videos you have already watched to an external disk; frees up to 6,4 GB."
-                    """)
+                let session = LanguageModelSession(instructions: instructions)
                 let response = try await session.respond(to: prompt, options: GenerationOptions(temperature: 0.3))
                 return .answer(parse(response.content))
             } catch {

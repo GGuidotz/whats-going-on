@@ -87,6 +87,18 @@ enum Format {
         return h > 0 ? L("%d h %02d min", h, m) : L("%d min", m)
     }
 
+    /// Giorni approssimati: "meno di un giorno", "1 giorno", "12 giorni".
+    static func days(_ value: Double) -> String {
+        if value < 1 { return L("meno di un giorno") }
+        let d = Int(value.rounded())
+        return d == 1 ? L("1 giorno") : L("%d giorni", d)
+    }
+
+    /// Byte con il segno, per le variazioni: "+600 MB", "−120 MB".
+    static func signedBytes(_ value: Int64) -> String {
+        (value < 0 ? "−" : "+") + bytes(value.magnitude)
+    }
+
     /// Da quanto è acceso: "3 giorni, 4 h", "5 h 20 min".
     static func uptime(_ seconds: TimeInterval) -> String {
         let total = Int(seconds / 60)
