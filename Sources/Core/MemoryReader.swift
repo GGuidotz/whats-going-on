@@ -5,6 +5,8 @@ import Foundation
 
 final class MemoryReader {
     private let total = ProcessInfo.processInfo.physicalMemory
+    /// Pagine scritte e lette dallo swap finora (dal kernel), per la velocità tra due letture.
+    private var previousSwap: (outs: UInt64, ins: UInt64, at: UInt64)?
 
     func read() -> MemorySample? {
         var stats = vm_statistics64()
@@ -23,12 +25,25 @@ final class MemoryReader {
         let wired = UInt64(stats.wire_count) * page
         let compressed = UInt64(stats.compressor_page_count) * page
         let cached = (UInt64(stats.external_page_count) + purgeable) * page
+        // Quanto la memoria compressa rappresenta: pagine originali dentro il compressore.
+        let uncompressed = UInt64(stats.total_uncompressed_pages_in_compressor) * page
+
+        // Velocità dello swap: è il segnale che il Mac sta rallentando adesso, non solo che è pieno.
+        let now = DispatchTime.now().uptimeNanoseconds
+        var swapOut: Double?, swapIn: Double?
+        if let p = previousSwap, now > p.at, stats.swapouts >= p.outs, stats.swapins >= p.ins {
+            let seconds = Double(now - p.at) / 1e9
+            swapOut = Double((stats.swapouts - p.outs) * page) / seconds
+            swapIn = Double((stats.swapins - p.ins) * page) / seconds
+        }
+        previousSwap = (stats.swapouts, stats.swapins, now)
 
         return MemorySample(total: total,
                             used: min(total, app + wired + compressed),
                             app: app, wired: wired, compressed: compressed, cached: cached,
                             swapUsed: swapUsed(),
-                            pressure: pressure())
+                            pressure: pressure(),
+                            uncompressed: uncompressed, swapOutRate: swapOut, swapInRate: swapIn)
     }
 
     private func pressure() -> MemoryPressure {

@@ -110,6 +110,11 @@ enum DiagnosticsReport {
         row("System power (SMC)", yesNo(s.sensors?.systemWatts != nil))
         row("GPU", s.gpu != nil ? "yes" : (model.monitor.needs.gpu ? "no" : "not requested"))
         row("Summary", model.monitor.summary.title)
+        row("Thermal state", "\(s.thermal)")
+        row("Busy processes (ps)", "\(s.runaways.count), Spotlight \(s.spotlight != nil ? "indexing" : "idle")")
+        row("Long history", prefs.keepsHistory ? "\(model.monitor.longHistory.points.count) points" : "off")
+        let startup = StartupReport(model.startupItems)
+        row("Startup items", "\(startup.total), \(startup.orphans) orphaned, \(startup.userOrphans) actionable")
 
         section("Preferences")
         row("Menu bar", prefs.visibleModules.map(\.rawValue).joined(separator: ", ") + " (\(prefs.style.rawValue))")

@@ -43,8 +43,25 @@ struct SummaryEngine {
             }
         }
 
-        if let d = s.disk, d.freeFraction < 0.1 {
-            notes.append(Note(level: .warning, weight: 90, text: L("Disco quasi pieno: %@ liberi", Format.diskBytes(d.free))))
+        // Lo swap che cresce dice che il Mac rallenta adesso, anche prima che la pressione diventi critica.
+        if let change = s.swapTrend?.change30, change >= Diagnosis.swapGrowth30 {
+            notes.append(Note(level: .warning, weight: 98,
+                              text: L("La memoria non basta: lo swap è cresciuto di %@ in 30 min", Format.bytes(UInt64(change)))))
+        }
+
+        if let d = s.disk, d.freeFraction < Diagnosis.diskLow {
+            let text = s.diskForecast.map {
+                L("Disco quasi pieno: %@ liberi, pieno tra circa %@", Format.diskBytes(d.free), Format.days($0.daysLeft))
+            } ?? L("Disco quasi pieno: %@ liberi", Format.diskBytes(d.free))
+            let critical = d.freeFraction < Diagnosis.diskCritical
+            notes.append(Note(level: critical ? .warning : .busy, weight: critical ? 90 : 70, text: text))
+        }
+
+        switch s.thermal {
+        case .serious, .critical:
+            notes.append(Note(level: .warning, weight: 82, text: L("macOS sta rallentando il Mac per il calore")))
+        case .fair, .nominal:
+            break
         }
 
         if let b = s.battery, !b.onAC, b.level <= 0.1 {
@@ -67,6 +84,19 @@ struct SummaryEngine {
             notes.append(Note(level: .busy, weight: 60 + Double(min(minutes, 30)), text: text))
         }
 
+        // Processi di sistema e servizi che lavorano da molto (le app le dice già la nota sopra).
+        if let p = s.runaways.first(where: { r in
+            r.appName == nil && r.cpu >= Diagnosis.runawayCPU && r.minutes(at: now) >= 2 && !hot.contains { $0.name == r.name }
+        }) {
+            let minutes = p.minutes(at: now)
+            notes.append(Note(level: .busy, weight: 62 + Double(min(minutes, 30)),
+                              text: L("%@ (%@) lavora al %d%% da %d min", p.name, p.kind, Int(p.cpu.rounded()), minutes)))
+        }
+
+        if let sp = s.spotlight, sp.minutes(at: now) >= 2 {
+            notes.append(Note(level: .busy, weight: 35, text: L("Spotlight sta indicizzando da %d min", sp.minutes(at: now))))
+        }
+
         if let c = s.cpu {
             if c.total >= 0.85 {
                 notes.append(Note(level: .busy, weight: 55, text: L("La CPU è quasi al massimo (%@)", Format.percent(c.total))))
@@ -82,6 +112,17 @@ struct SummaryEngine {
             }
         }
 
+        // Cose da sapere ma non urgenti: solo come seconda riga, mai come titolo né come notifica.
+        var minor: [String] = []
+        if s.thermal == .fair { minor.append(L("Il Mac è tiepido, ma macOS non limita le prestazioni")) }
+        if let up = s.uptime, up >= Diagnosis.longUptime {
+            minor.append(L("Acceso da %@: un riavvio libera memoria", Format.days(up / 86_400)))
+        }
+        if let orphans = s.startupOrphans, orphans > 0 {
+            minor.append(orphans == 1 ? L("1 elemento di avvio orfano: vedi Attrezzi › Avvio")
+                                      : L("%d elementi di avvio orfani: vedi Attrezzi › Avvio", orphans))
+        }
+
         notes.sort { $0.weight > $1.weight }
         guard let first = notes.first else {
             // Tutto tranquillo: la seconda riga dice comunque chi lavora di più, se qualcuno lavora.
@@ -89,8 +130,8 @@ struct SummaryEngine {
             if let top = s.topByCPU.first, top.cpu >= 5 {
                 detail = L("L'app più attiva è %@ (%@)", top.name, Format.corePercent(top.cpu))
             }
-            return Summary(title: L("Tutto tranquillo"), detail: detail, level: .calm)
+            return Summary(title: L("Tutto tranquillo"), detail: detail ?? minor.first, level: .calm)
         }
-        return Summary(title: first.text, detail: notes.dropFirst().first?.text, level: first.level)
+        return Summary(title: first.text, detail: notes.dropFirst().first?.text ?? minor.first, level: first.level)
     }
 }

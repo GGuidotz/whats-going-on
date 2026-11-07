@@ -11,17 +11,27 @@ grafico degli ultimi secondi; un clic apre i dettagli.
 È un progetto companion di [Cocaine](https://github.com/Mattiakart/cocaine): gli avvisi possono arrivare nella sua
 isola. Progetto indipendente, non affiliato a Cocaine. Ispirato a [Stats](https://mac-stats.com).
 
+## Perché è lento?
+
+Il pulsante **Perché è lento?** sotto la frase cerca le cause di adesso con regole fisse e le mette in ordine, ognuna
+con i numeri e cosa fare: memoria che non basta (swap che cresce, memoria compressa), un processo che lavora da molto
+(anche di macOS e di root), Spotlight che indicizza, disco sotto il 15% con la stima di quando sarà pieno, calore
+secondo macOS, app che intercettano la tastiera, elementi di avvio orfani, giorni dall'ultimo riavvio. La stessa
+situazione dà sempre la stessa risposta. Con Apple Intelligence accesa (macOS 26), un clic la riscrive in parole
+semplici, sul Mac.
+
 ## Cosa mostra
 
 | Misura | Dettagli |
 |---|---|
-| CPU | utente e sistema, processore, carico medio, da quanto è acceso, carico di ogni core (modalità avanzata), app più attive |
-| Memoria | pressione, app, riservata, compressa, swap, app che usano più memoria |
+| CPU | utente e sistema, processore, carico medio, da quanto è acceso, stato termico di macOS, Spotlight che indicizza, processi che lavorano da molto (anche di sistema), carico di ogni core (modalità avanzata), app più attive |
+| Memoria | pressione, app, riservata, compressa e dati che contiene, swap con la variazione degli ultimi 30 minuti e la velocità di scrittura, app che usano più memoria (compressa inclusa) |
 | Rete | velocità di download e upload, traffico da quando è aperta, indirizzo locale |
 | Temperatura | chip e GPU; tutti i sensori in modalità avanzata |
 | GPU | utilizzo e memoria (modalità avanzata) |
-| Disco | spazio libero e occupato |
+| Disco | spazio libero e occupato, quando sarà pieno al ritmo degli ultimi giorni |
 | Batteria e consumo | livello, tempo rimasto, salute, capacità, cicli; alimentatore e flusso di energia (quanto entra, quanto va alla batteria); consumo del Mac dove macOS lo espone |
+| Cronologia | 24 ore e 7 giorni di CPU, memoria, swap e spazio libero: un punto al minuto, solo numeri, salvati sul Mac e cancellabili da Impostazioni › Generale |
 
 Nella barra dei menu, di predefinito: CPU, RAM e RETE. In Impostazioni › Barra dei menu scegli moduli, ordine e stile
 (numeri, o numeri con un piccolo grafico a barre), gli spazi e i colori (scala rosso-verde o tre colori a scelta), con
@@ -35,7 +45,8 @@ Su macOS 26 e successivi pannello, schede e pulsanti sono di Liquid Glass, e l'i
 
 L'obiettivo è restare sotto l'1% di CPU. A pannello chiuso l'app legge solo ciò che mostri nella barra e ciò che serve
 agli avvisi accesi: le temperature, la lettura più pesante, solo dai sensori del chip e di base ogni 30 secondi; l'elenco
-delle app ogni 10. Con la barra nascosta non disegna nulla, a schermi spenti rallenta. Quanto pesa davvero lo vedi in
+delle app ogni 10; tutti i processi, anche quelli di sistema, con `ps` ogni 30 secondi (circa 25 ms ogni volta). La
+cronologia lunga prende un punto al minuto dalle stesse letture. Con la barra nascosta non disegna nulla, a schermi spenti rallenta. Quanto pesa davvero lo vedi in
 Impostazioni › Generale. Al primo avvio una guida breve aiuta a scegliere cosa vedere e dove ricevere gli avvisi.
 
 ## Attrezzi
@@ -52,6 +63,11 @@ Su richiesta, in una finestra loro (⌘T dal pannello, i pulsanti nelle righe Di
   Cerca su tutto il Mac: i file per nome con Spotlight, anche senza leggere il disco.
 - **App**: chi pesa in memoria, chi fa lavorare la CPU, chi consuma energia, chi lavora sul disco e chi usa la rete,
   con Chiudi e Forza chiusura.
+- **Avvio**: cosa parte da solo (LaunchAgents dell'utente e di tutti gli utenti, LaunchDaemons), con gli orfani: file
+  vuoti, programmi che non ci sono più, app disinstallate. Gli agenti orfani del tuo utente si disattivano o vanno nel
+  Cestino, con conferma; quelli in /Library chiedono la password di amministratore e qui si mostrano soltanto.
+- **Tastiera**: le app che intercettano i tasti adesso, in modo attivo (ogni tasto aspetta la loro risposta) o solo in
+  ascolto, con il ritardo misurato da macOS. Senza permessi.
 - **Disinstalla**: le app installate con peso e ultimo uso; per ognuna ciò che ha lasciato nella Libreria (dati, cache,
   preferenze, contenitori, avvio automatico, anche nella cartella del produttore). App e avanzi scelti vanno nel Cestino, con conferma.
 - **Mole**: se hai [Mole](https://github.com/tw93/Mole) (`brew install mole`), anteprima e pulizia con `mo clean` e
@@ -62,8 +78,11 @@ Gli attrezzi non leggono nulla finché non li apri.
 
 ## Avvisi
 
-Con soglie che scegli tu: CPU alta, memoria sotto pressione, disco quasi pieno, chip caldo, un'app che consuma troppo.
-Un avviso scatta quando la condizione dura abbastanza, una volta sola, e torna solo dopo che il valore è sceso.
+Con soglie che scegli tu: CPU alta, memoria sotto pressione, swap in crescita, disco quasi pieno (sotto il 15%), chip
+caldo, un'app che consuma troppo, un processo fuori controllo (anche di sistema, da oltre 10 minuti). Un avviso scatta
+quando la condizione dura abbastanza, una volta sola, e torna solo dopo che il valore è sceso. Elementi di avvio orfani,
+giorni di accensione e calore lieve non avvisano: restano nel pannello e nella frase. Chi aggiorna da una versione
+precedente trova i tipi nuovi spenti, da accendere in Impostazioni › Avvisi.
 
 Se scegli l'isola di Cocaine, l'avviso va a Cocaine con il suo link `cocaine://alert` e resta nei suoi avvisi recenti.
 Cocaine però lo mostra solo quando sei lontano dal Mac da almeno 20 secondi, a meno che in Cocaine sia acceso
@@ -107,7 +126,15 @@ Impostazioni › Feedback (o clic destro sulla voce nella barra › Invia un fee
 
 - Le temperature su Apple silicon passano da funzioni di IOKit non documentate (le stesse usate da Stats). Se un
   aggiornamento di macOS le cambia, la riga Temperatura sparisce invece di mostrare dati sbagliati.
-- I processi di sistema che girano come root non si leggono senza privilegi: nell'elenco delle app non compaiono.
+- I processi di root non si leggono con le funzioni del kernel senza privilegi (proc_pid_rusage restituisce -1). Per
+  CPU e durata si usa `ps`, che macOS installa con i privilegi per leggerli: dà una media mobile su circa un minuto.
+  Memoria, disco ed energia di quei processi restano fuori dall'elenco delle app.
+- Spotlight non dice a che punto è l'indicizzazione: si capisce dal lavoro dei suoi processi.
+- Il ritardo dei tap della tastiera è quello che riporta macOS; oltre un secondo non si mostra, perché su macOS 27
+  compaiono valori così anche per tap mai misurati. Chi ha il permesso Accessibilità o Monitoraggio dell'input senza
+  usarlo sta in un database protetto: non si legge.
+- L'elenco Elementi login di Impostazioni di Sistema richiede la password di amministratore: la scheda Avvio mostra i
+  file LaunchAgents e LaunchDaemons e apre Elementi login con un pulsante.
 - Il consumo totale del Mac c'è solo dove l'SMC lo espone; energia per app e flusso dell'alimentatore solo su Apple
   silicon.
 - La rete per app viene da `nettop` di macOS, chiamato solo con l'attrezzo App aperto.
@@ -121,7 +148,7 @@ Impostazioni › Feedback (o clic destro sulla voce nella barra › Invia un fee
 
 | Cartella | Cosa contiene |
 |---|---|
-| `Sources/Core` | Il motore: lettori (CPU, memoria, rete, disco, batteria, processi, sensori, GPU), cronologia, frase, avvisi, scala del carico, lettura del disco e consigli degli attrezzi. Solo Foundation e IOKit |
+| `Sources/Core` | Il motore: lettori (CPU, memoria, rete, disco, batteria, processi anche di sistema, sensori, GPU, tastiera, avvio), cronologia breve e lunga, frase, "Perché è lento?", avvisi, scala del carico, lettura del disco e consigli degli attrezzi. Solo Foundation, IOKit e CoreGraphics |
 | `Sources/Island` | Le viste SwiftUI della pagina "Sistema": le usa il pannello e sono pensate per l'isola di Cocaine |
 | `Sources/App` | Avvio AppKit, voce colorata nella barra, pannello, impostazioni, avvisi, aggiornamenti, feedback; in `Tools` gli attrezzi (mappa, app, Mole, Apple Intelligence) |
 | `Resources/Icon` | Icona Liquid Glass (`WhatsGoingOn.icon`, Icon Composer) e icona classica di ripiego |

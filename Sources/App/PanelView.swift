@@ -35,7 +35,9 @@ struct PanelView: View {
 
     var body: some View {
         ScrollView {
-            SystemPanel(monitor: model.monitor, advanced: prefs.advanced, tools: tools)
+            SystemPanel(monitor: model.monitor, advanced: prefs.advanced, tools: tools,
+                        belowSummary: AnyView(WhySlowBox(model: model, advice: model.diagnosisAdvice, prefs: prefs,
+                                                         openTool: openTool)))
                 .padding(.horizontal, 12)
                 .padding(.top, 14)
                 .padding(.bottom, 8)
@@ -48,6 +50,19 @@ struct PanelView: View {
         .frame(width: 360, height: min(contentHeight + footerHeight, maxHeight))
         .onPreferenceChange(HeightKey.self) { contentHeight = $0 }
         .onPreferenceChange(FooterHeightKey.self) { if $0 > 0 { footerHeight = $0 } }
+        .onDisappear { model.clearDiagnosis() }   // riaprendo, una risposta vecchia non deve sembrare di adesso
+    }
+
+    /// Da una causa di "Perché è lento?" all'attrezzo che la sistema.
+    private func openTool(_ tool: Cause.Tool) {
+        close()
+        switch tool {
+        case .space: model.showTools(.space)
+        case .memory: model.showTools(.apps, measure: .memory)
+        case .cpu: model.showTools(.apps, measure: .cpu)
+        case .startup: model.showTools(.startup)
+        case .keyboard: model.showTools(.keyboard)
+        }
     }
 
     /// Gli attrezzi si aprono in una finestra loro: il pannello si chiude.
@@ -110,5 +125,74 @@ struct PanelView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+    }
+}
+
+/// "Perché è lento?": un pulsante sotto la frase; premuto, le cause trovate dalle regole e, se accesa e disponibile,
+/// la riscrittura di Apple Intelligence.
+private struct WhySlowBox: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var advice: AdviceModel
+    @ObservedObject var prefs: Preferences
+    var openTool: (Cause.Tool) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Button {
+                    model.diagnose()
+                } label: {
+                    Label(model.diagnosis == nil ? L("Perché è lento?") : L("Controlla di nuovo"),
+                          systemImage: "stethoscope")
+                }
+                .glassButton()
+                .controlSize(.small)
+                if model.diagnosis != nil {
+                    Button(L("Chiudi")) { model.clearDiagnosis() }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                }
+                Spacer(minLength: 0)
+            }
+            if let diagnosis = model.diagnosis {
+                DiagnosisView(diagnosis: diagnosis, openTool: openTool)
+                if prefs.intelligence, AdviceModel.unavailableReason == nil, !diagnosis.causes.isEmpty {
+                    intelligence(diagnosis)
+                }
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    @ViewBuilder
+    private func intelligence(_ diagnosis: Diagnosis) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Button {
+                    advice.ask(.slow, context: diagnosis.plainText)
+                } label: {
+                    Label(L("Spiegamelo in parole semplici"), systemImage: "sparkles")
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+                .disabled(advice.state == .working)
+                if advice.state == .working { ProgressView().controlSize(.mini) }
+            }
+            switch advice.state {
+            case .answer(let lines):
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                        Text(line).font(.callout).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text(L("Scritto da Apple Intelligence sul Mac a partire dalle cause qui sopra: controlla prima di agire."))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            case .failed(let message):
+                Text(message).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            case .idle, .working:
+                EmptyView()
+            }
+        }
     }
 }

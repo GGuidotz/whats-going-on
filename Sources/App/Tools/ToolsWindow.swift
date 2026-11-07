@@ -1,4 +1,5 @@
-// La finestra degli Attrezzi: Spazio (cosa occupa il disco), App (memoria, CPU, energia, disco e rete) e Disinstalla.
+// La finestra degli Attrezzi: Spazio (cosa occupa il disco), App (memoria, CPU, energia, disco e rete), Avvio (cosa
+// parte da solo, con gli orfani), Tastiera (chi intercetta i tasti) e Disinstalla.
 // Si apre solo quando la chiami: dal pannello, da un avviso, dal menu della voce nella barra. Chiusa, se ne va tutto: albero del disco, viste,
 // consigli. Mole resta nel modello dell'app, così un comando avviato finisce anche a finestra chiusa.
 
@@ -6,13 +7,15 @@ import AppKit
 import SwiftUI
 
 enum ToolsTab: String, CaseIterable, Identifiable {
-    case space, apps, uninstall
+    case space, apps, startup, keyboard, uninstall
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .space: L("Spazio")
         case .apps: L("App")
+        case .startup: L("Avvio")
+        case .keyboard: L("Tastiera")
         case .uninstall: L("Disinstalla")
         }
     }
@@ -21,6 +24,8 @@ enum ToolsTab: String, CaseIterable, Identifiable {
         switch self {
         case .space: "internaldrive"
         case .apps: "memorychip"
+        case .startup: "power.circle"
+        case .keyboard: "keyboard"
         case .uninstall: "xmark.bin"
         }
     }
@@ -115,6 +120,10 @@ struct ToolsView: View {
             case .apps:
                 AppsView(monitor: model.monitor, mole: model.mole, advice: state.appsAdvice, prefs: prefs,
                          measure: $state.measure)
+            case .startup:
+                StartupView(model: model)
+            case .keyboard:
+                KeyboardView()
             case .uninstall:
                 UninstallView(model: state.uninstall)
             }

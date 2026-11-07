@@ -26,6 +26,11 @@ struct MemorySample: Equatable {
     var cached: UInt64
     var swapUsed: UInt64
     var pressure: MemoryPressure
+    /// Quanta memoria delle app sta dentro la compressa, prima della compressione.
+    var uncompressed: UInt64 = 0
+    /// Byte al secondo scritti nello swap e letti dallo swap, dall'ultima lettura; nil alla prima.
+    var swapOutRate: Double? = nil
+    var swapInRate: Double? = nil
 
     var usedFraction: Double { total > 0 ? min(1, Double(used) / Double(total)) : 0 }
 }
@@ -137,6 +142,18 @@ struct Snapshot: Equatable {
     /// What's Going On stessa: quanto pesa adesso.
     var ownUsage: ProcessUsage?
     var load: LoadSample?
+    /// Processi (anche di sistema) che lavorano molto da un po', il più pesante prima. Da ps, ogni 10-30 s.
+    var runaways: [RunawayProcess] = []
+    /// Spotlight sta indicizzando: quanto e da quando.
+    var spotlight: SpotlightActivity?
+    var thermal: ThermalLevel = .nominal
+    /// Da quanto è acceso il Mac.
+    var uptime: TimeInterval?
+    /// Dalla cronologia lunga (SystemMonitor): lo swap negli ultimi 30 e 60 minuti, il disco che si riempie.
+    var swapTrend: SwapTrend?
+    var diskForecast: DiskForecast?
+    /// Elementi di avvio orfani (letti dall'app all'avvio e ogni ora); nil finché non si sa.
+    var startupOrphans: Int?
 
     var topByCPU: [ProcessUsage] { processes.sorted { $0.cpu > $1.cpu } }
     var topByMemory: [ProcessUsage] { processes.sorted { $0.memory > $1.memory } }

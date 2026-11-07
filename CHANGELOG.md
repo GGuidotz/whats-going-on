@@ -3,6 +3,25 @@
 Formato: `## <versione> · <data>`, poi `### Novità`, `### Miglioramenti`, `### Correzioni`, una riga `- ` per
 cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggiornamenti (Sources/App/Changelog.swift).
 
+## 0.7.0 · 2026-11-07
+
+Perché è lento: le cause di adesso in una risposta, la cronologia di una settimana, cosa parte da solo e chi intercetta la tastiera.
+
+### Novità
+- **Perché è lento?** Un pulsante sotto la frase cerca le cause di adesso con regole fisse e le ordina dalla più grave, ognuna con i numeri e cosa fare: memoria che non basta, processi che lavorano da molto, Spotlight, disco, calore, tastiera, elementi di avvio orfani, giorni dall'ultimo riavvio. Con Apple Intelligence accesa, un clic la riscrive in parole semplici, sul Mac.
+- **Processi di sistema.** Anche quelli di macOS e di root (prima invisibili): chi lavora al 95% da 40 minuti compare nella frase, nei dettagli della CPU e nella risposta, con cosa fa e se conviene preoccuparsi.
+- **Cronologia di 7 giorni.** CPU, memoria, swap e spazio libero, un punto al minuto, in grafici delle 24 ore e dei 7 giorni. Solo numeri, salvati sul Mac; si spegne o si cancella in Impostazioni › Generale.
+- **Attrezzi › Avvio.** Cosa parte da solo (LaunchAgents e LaunchDaemons) e cosa resta di app che non ci sono più. Gli orfani del tuo utente si disattivano o vanno nel Cestino, con conferma.
+- **Attrezzi › Tastiera.** Le app che intercettano i tasti adesso, in modo attivo o solo in ascolto, con il ritardo misurato da macOS. Senza permessi.
+- **Due avvisi nuovi.** Swap in crescita (più di 500 MB in 30 minuti) e processo fuori controllo (anche di sistema, da oltre 10 minuti). Chi aggiorna li trova spenti in Impostazioni › Avvisi.
+
+### Miglioramenti
+- **Disco: avviso sotto il 15%.** Prima scattava sotto il 10%, quando il Mac era già lento; chi aveva il vecchio predefinito passa al nuovo. La frase e l'avviso dicono anche tra quanti giorni sarà pieno.
+- **Memoria spiegata.** Quanti dati stanno nella compressa, come è cambiato lo swap negli ultimi 30 minuti e quanto scrive adesso; le app più pesanti contano anche la loro parte compressa.
+- **Stato termico e Spotlight.** Lo stato termico di macOS e l'indicizzazione di Spotlight nei dettagli della CPU; il calore che riduce le prestazioni entra nella frase.
+- **Da quanto è acceso, sempre.** Non più solo a pannello aperto; dopo due settimane la frase suggerisce un riavvio, senza avvisi.
+- **Gli avvisi restano per le cose gravi.** Elementi di avvio orfani, giorni di accensione e calore lieve si vedono nel pannello e nella frase, mai come notifica.
+
 ## 0.6.0 · 2026-10-16
 
 Disinstalla le app per davvero, guarda chi consuma energia, disco e rete, e libera spazio più in fretta.

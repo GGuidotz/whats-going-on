@@ -44,6 +44,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
+    /// All'uscita la cronologia lunga va sul disco (altrimenti si perdono al massimo gli ultimi 10 minuti).
+    func applicationWillTerminate(_ notification: Notification) {
+        AppModel.shared.monitor.saveHistory(wait: true)
+    }
+
     /// Aprire l'app già aperta (dal Finder o da Spotlight) apre il pannello: è lì che si vede cosa succede.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         statusItem?.showPanel()
