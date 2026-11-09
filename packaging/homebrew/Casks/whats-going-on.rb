@@ -19,16 +19,20 @@ cask "whats-going-on" do
 
   app "What's Going On.app"
 
-  postflight do
+  postflight_steps do
     # L'app non è notarizzata (niente account Apple Developer): togliere la quarantena evita "Apri comunque".
-    system_command "/usr/bin/xattr",
-                   args:         ["-dr", "com.apple.quarantine", "#{appdir}/What's Going On.app"],
-                   must_succeed: false
+    run "/usr/bin/xattr",
+        args:           ["-dr", "com.apple.quarantine", "{{appdir}}/What's Going On.app"],
+        writable_paths: ["{{appdir}}/What's Going On.app"],
+        must_succeed:   false
   end
 
   uninstall quit: "local.whatsgoingon.app"
 
-  zap trash: "~/Library/Preferences/local.whatsgoingon.app.plist"
+  zap trash: [
+    "~/Library/Application Support/What's Going On",
+    "~/Library/Preferences/local.whatsgoingon.app.plist",
+  ]
 
   caveats <<~EOS
     What's Going On lives in the menu bar. Alerts can go to Cocaine's island:
