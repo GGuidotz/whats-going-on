@@ -33,6 +33,8 @@
 	<string>AppIcon</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 gguidotz · github.com/GGuidotz/whats-going-on</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Serve per eseguire nel Terminale il comando di aggiornamento, solo quando lo chiedi tu.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>

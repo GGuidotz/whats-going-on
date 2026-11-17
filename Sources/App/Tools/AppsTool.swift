@@ -247,10 +247,10 @@ enum AppCloser {
             guard ToolsAlert.confirm(title: L("Forzare la chiusura di %@?", name),
                                      message: L("Le modifiche non salvate andranno perse. Usala solo se l'app non risponde."),
                                      button: L("Forza chiusura")) else { return "" }
-            diag(.app, "force quit \(name)")
+            diag(.app, "app force quit")
             return app.forceTerminate() ? L("%@ chiusa.", name) : L("%@ non si è chiusa.", name)
         }
-        diag(.app, "quit \(name)")
+        diag(.app, "app quit")
         return app.terminate()
             ? L("Ho chiesto a %@ di chiudersi: se ha documenti aperti, te lo chiede.", name)
             : L("%@ non ha risposto: prova Forza chiusura dal menu accanto.", name)

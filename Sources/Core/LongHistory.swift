@@ -239,8 +239,11 @@ struct LongHistory: Equatable {
     }
 
     static func save(_ data: Data, to url: URL = defaultURL) throws {
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        // Cartella 0700 e file 0600: la cronologia la legge solo il tuo utente.
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
         try data.write(to: url, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
     static func delete(at url: URL = defaultURL) {

@@ -118,13 +118,14 @@ KC="$HOME/.nod-signing/nod-signing.keychain"
 if [ -f "$KC" ]; then
   SIGNING=local
   security unlock-keychain -p nod "$KC"
-  codesign --force --keychain "$KC" --sign "Nod Local Signing" "$APP"
+  codesign --force --options runtime --entitlements Resources/WhatsGoingOn.entitlements --keychain "$KC" --sign "Nod Local Signing" "$APP"
 else
   SIGNING=adhoc
-  codesign --force --sign - "$APP"
+  codesign --force --options runtime --entitlements Resources/WhatsGoingOn.entitlements --sign - "$APP"
   echo "Attenzione: firma ad hoc. A ogni build macOS dimentica l'Accesso completo al disco (vedi make-signing-identity.sh di Nod)."
 fi
 codesign --verify --strict "$APP"
+codesign -dv "$APP" 2>&1 | grep -q 'flags=.*runtime' || { echo "Manca l'hardened runtime"; exit 1; }
 echo "Pronto: $APP ($VERSION, build $BUILD_NUMBER, commit $COMMIT, firma $SIGNING, icona $ICON_TIER${ICON_CHECK:+: $ICON_CHECK})"
 
 case "$MODE" in

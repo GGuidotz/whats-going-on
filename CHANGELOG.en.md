@@ -3,6 +3,17 @@
 English notes, same format as CHANGELOG.md (the Italian one is the reference). The app uses these when its language
 is English; versions missing here fall back to the Italian notes.
 
+## 0.7.1 · 2026-11-17
+
+More security: tighter signing, private history, diagnostics without app names.
+
+### Improvements
+- **Tighter signing against code injection.** The app uses the macOS hardened runtime: another program can no longer inject code into it to borrow the permissions you gave it.
+- **History readable only by your user.** The folder and file of the 7-day history are no longer accessible to other users of the Mac.
+
+### Bug Fixes
+- **Diagnostics no longer contain app names.** Quitting, force quitting or uninstalling an app leaves only the event, without the name.
+
 ## 0.7.0 · 2026-11-07
 
 Why is it slow: today's causes in one answer, a week of history, what starts by itself and who intercepts the keyboard.
