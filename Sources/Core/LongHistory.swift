@@ -242,6 +242,8 @@ struct LongHistory: Equatable {
         // Cartella 0700 e file 0600: la cronologia la legge solo il tuo utente.
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
+        // Una cartella già creata dalle versioni precedenti (0755) va ristretta anche lei.
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.deletingLastPathComponent().path)
         try data.write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
