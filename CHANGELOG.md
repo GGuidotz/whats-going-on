@@ -3,6 +3,17 @@
 Formato: `## <versione> · <data>`, poi `### Novità`, `### Miglioramenti`, `### Correzioni`, una riga `- ` per
 cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggiornamenti (Sources/App/Changelog.swift).
 
+## 0.7.1 · 2026-11-17
+
+Più sicurezza: firma più stretta, cronologia riservata, diagnostica senza nomi di app.
+
+### Miglioramenti
+- **Firma più stretta contro l'iniezione di codice.** L'app usa l'hardened runtime di macOS: un altro programma non può più infilarvi codice per sfruttare i permessi che le hai dato.
+- **Cronologia leggibile solo dal tuo utente.** La cartella e il file della cronologia di 7 giorni non sono più accessibili agli altri utenti del Mac.
+
+### Correzioni
+- **La diagnostica non contiene più nomi di app.** Chiudere, forzare la chiusura o disinstallare un'app lascia solo l'evento, senza il nome.
+
 ## 0.7.0 · 2026-11-07
 
 Perché è lento: le cause di adesso in una risposta, la cronologia di una settimana, cosa parte da solo e chi intercetta la tastiera.

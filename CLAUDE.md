@@ -4,6 +4,8 @@ App macOS per la barra dei menu (Swift/SwiftUI, macOS 14+), companion di Cocaine
 
 - Compilazione: `./build.sh` (swiftc diretto, niente progetto Xcode). Firma con l'identità locale di Nod
   (~/.nod-signing) se c'è, altrimenti ad hoc: serve perché macOS ricordi l'Accesso completo al disco degli Attrezzi.
+  Firma con hardened runtime ed entitlement in `Resources/WhatsGoingOn.entitlements`, da aggiornare se l'app usa una
+  risorsa nuova (microfono, calendari, ecc.).
   Nel cloud Swift non compila: ogni modifica la prova Giulio sul Mac con `./build.sh --install`. Rileggi il codice con
   cura prima di consegnare.
 - `Sources/Core` non importa SwiftUI né AppKit: deve poter entrare in Cocaine come pagina dell'isola.

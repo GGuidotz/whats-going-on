@@ -165,7 +165,7 @@ final class UninstallModel: ObservableObject {
                     Format.diskBytes(total)),
             button: L("Sposta nel Cestino")) else { return }
 
-        diag(.app, "uninstall \(app.bundleID ?? app.name) with \(extras.count) leftovers")
+        diag(.app, "app uninstall with \(extras.count) leftovers")
         // L'app con NSWorkspace: se è di root (installata da un pacchetto), macOS chiede la password come il Finder.
         NSWorkspace.shared.recycle([URL(fileURLWithPath: app.path)]) { [weak self] _, error in
             DispatchQueue.main.async {
@@ -203,7 +203,7 @@ final class UninstallModel: ObservableObject {
                     }
                     self.message = text
                     self.onFreed?(moved)
-                    diag(.app, "uninstalled \(app.bundleID ?? app.name), \(notMoved.count) leftovers failed")
+                    diag(.app, "app uninstalled, \(notMoved.count) leftovers failed")
                 }
             }
         }
