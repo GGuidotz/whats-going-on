@@ -2,8 +2,8 @@
 
 # Cask di What's Going On per il tap GGuidotz/homebrew-tap. Version e sha256 li aggiorna release.sh.
 cask "whats-going-on" do
-  version "0.7.0"
-  sha256 "94f4c296226df0da8d06893904e459bb13ce22030dfbb88394368b330b3d4029"
+  version "0.7.1"
+  sha256 "dd7b6e729718c82090461b2c5dd98cbc2ea0f801a54b65cfe64538bca20cc211"
 
   url "https://github.com/GGuidotz/whats-going-on/releases/download/v#{version}/WhatsGoingOn-#{version}.dmg"
   name "What's Going On"
