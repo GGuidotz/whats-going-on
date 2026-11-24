@@ -121,6 +121,10 @@
 "Lampeggio di Cocaine spento: arrivato anche come notifica" = "Cocaine's flash is off: also sent as a notification";
 "Libero" = "Free";
 "Lingua" = "Language";
+"Colore d'accento" = "Accent color";
+"Colore dell'app" = "App color";
+"Colore di sistema" = "System color";
+"Personalizzato" = "Custom";
 "macOS non permette le notifiche: Impostazioni di Sistema › Notifiche › What's Going On" = "macOS doesn't allow notifications: System Settings › Notifications › What's Going On";
 "Mai" = "Never";
 "Memoria in uso" = "Memory in use";

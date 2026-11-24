@@ -116,7 +116,7 @@ struct WhatsNewView: View {
             .padding(.vertical, 16)
         }
         .frame(width: Self.size.width, height: Self.size.height)
-        .sguardoAccent(.whatsGoingOn)
+        .sguardoAccent(default: .whatsGoingOn)
     }
 
     private var header: some View {

@@ -3,6 +3,16 @@
 Formato: `## <versione> · <data>`, poi `### Novità`, `### Miglioramenti`, `### Correzioni`, una riga `- ` per
 cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggiornamenti (Sources/App/Changelog.swift).
 
+## 0.7.6 · 2026-11-24
+
+Il colore d'accento si sceglie.
+
+### Novità
+- **Colore d'accento a scelta.** In Impostazioni › Generale: il verde di What's Going On, il colore d'accento di macOS o uno tuo.
+
+### Miglioramenti
+- **Si compila da un clone.** Sguardo, il sistema di design, arriva con `git clone --recursive`: chi compila dal codice ha tutto.
+
 ## 0.7.5 · 2026-11-24
 
 Una veste nuova: forme, colori e movimenti di Sguardo, il sistema di design comune alle nostre app.

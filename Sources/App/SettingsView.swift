@@ -38,7 +38,7 @@ struct SettingsView: View {
         // La barra del titolo è trasparente e la vista occupa tutta la finestra: senza questo la zona sicura in alto
         // spinge giù tutto e la barra delle schede finisce sul bordo inferiore.
         .ignoresSafeArea()
-        .sguardoAccent(.whatsGoingOn)
+        .sguardoAccent(default: .whatsGoingOn)
         .id(prefs.language)   // cambio di lingua: ridisegna tutto subito
     }
 }
@@ -72,6 +72,10 @@ private struct GeneralSettings: View {
                 SGDivider()
                 SGMenuRow(L("Lingua"), selection: $prefs.language,
                           options: AppLanguage.allCases.map { (value: $0, title: $0.title) })
+                SGDivider()
+                SGAccentRow(L("Colore d'accento"),
+                            options: (app: L("Colore dell'app"), system: L("Colore di sistema"), custom: L("Personalizzato")),
+                            appDefault: .whatsGoingOn)
             } footer: {
                 SGFootnote(L("A pannello aperto i dati si aggiornano ogni secondo."))
             }

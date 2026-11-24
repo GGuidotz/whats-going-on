@@ -50,7 +50,7 @@ struct PanelView: View {
         .frame(width: 360, height: min(contentHeight + footerHeight, maxHeight))
         .onPreferenceChange(HeightKey.self) { contentHeight = $0 }
         .onPreferenceChange(FooterHeightKey.self) { if $0 > 0 { footerHeight = $0 } }
-        .sguardoAccent(.whatsGoingOn)
+        .sguardoAccent(default: .whatsGoingOn)
         .onDisappear { model.clearDiagnosis() }   // riaprendo, una risposta vecchia non deve sembrare di adesso
     }
 

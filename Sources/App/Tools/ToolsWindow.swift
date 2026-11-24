@@ -137,7 +137,7 @@ struct ToolsView: View {
         .frame(minWidth: Self.minSize.width, maxWidth: .infinity, minHeight: Self.minSize.height, maxHeight: .infinity)
         .onAppear { model.monitor.needs.liveProcesses = state.tab == .apps }
         .onChange(of: state.tab) { _, tab in model.monitor.needs.liveProcesses = tab == .apps }
-        .sguardoAccent(.whatsGoingOn)
+        .sguardoAccent(default: .whatsGoingOn)
         .id(prefs.language)
     }
 }

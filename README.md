@@ -101,10 +101,11 @@ quindi niente "Apri comunque". Aggiornare: `brew upgrade --cask whats-going-on`.
 `brew uninstall --cask whats-going-on` (`--zap` cancella anche le preferenze).
 
 Oppure compila dal codice: servono macOS 14+ e gli strumenti a riga di comando (`xcode-select --install`); con Xcode
-installato si compila anche l'icona Liquid Glass.
+installato si compila anche l'icona Liquid Glass. `--recursive` scarica anche Sguardo, il sistema di design comune
+(github.com/GGuidotz/sguardo) in `Vendor/Sguardo`; se hai già clonato senza, esegui `git submodule update --init`.
 
 ```sh
-git clone https://github.com/GGuidotz/whats-going-on.git
+git clone --recursive https://github.com/GGuidotz/whats-going-on.git
 cd whats-going-on
 ./build.sh --install
 ```

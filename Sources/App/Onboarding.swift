@@ -70,7 +70,7 @@ struct OnboardingView: View {
             footer
         }
         .frame(width: Self.size.width, height: Self.size.height)
-        .sguardoAccent(.whatsGoingOn)
+        .sguardoAccent(default: .whatsGoingOn)
         .id(prefs.language)
     }
 

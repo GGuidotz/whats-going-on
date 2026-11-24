@@ -18,8 +18,10 @@ App macOS per la barra dei menu (Swift/SwiftUI, macOS 14+), companion di Cocaine
   i nodi ERROR (SensorReader.swift ne dà uno falso per `@_silgen_name`). Non sostituisce la compilazione.
 - Avvio AppKit (`Sources/App/Main.swift`), non `App` di SwiftUI: la voce nella barra è un NSStatusItem perché
   MenuBarExtra disegna l'etichetta come immagine modello, a un colore. Le impostazioni sono una finestra nostra.
-- Grafica: Sguardo, il sistema di design comune (~/Developer/design-system, regole in DESIGN.md), compilato insieme
-  all'app da build.sh (`SGUARDO_DIR` se sta altrove). Accento `SG.Accent.whatsGoingOn` (verde calmo); righe e schede
+- Grafica: Sguardo, il sistema di design comune (github.com/GGuidotz/sguardo, submodule in `Vendor/Sguardo`, regole in
+  DESIGN.md e PLAYBOOK.md), compilato insieme all'app da build.sh (`SGUARDO_DIR` per provare il kit locale). Accento
+  predefinito `SG.Accent.whatsGoingOn` (verde calmo), applicato con `.sguardoAccent(default:)`: in Generale la persona
+  sceglie colore dell'app, di sistema o personalizzato (`SGAccentRow`). Righe e schede
   con `SGPage`/`SGSection`/`contentCard`, pulsanti nel contenuto `.buttonStyle(.sgSecondary/.sgPrimary)`.
   Liquid Glass solo sui controlli che galleggiano (barre delle schede `SGFloatingTabBar`, pulsanti in fondo al pannello
   `floatingGlassButton`), sempre dietro `if #available(macOS 26, *)` (`Sources/Island/Style.swift`).

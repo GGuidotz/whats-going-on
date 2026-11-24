@@ -3,6 +3,16 @@
 English notes, same format as CHANGELOG.md (the Italian one is the reference). The app uses these when its language
 is English; versions missing here fall back to the Italian notes.
 
+## 0.7.6 · 2026-11-24
+
+Pick your accent color.
+
+### New features
+- **Accent color of your choice.** In Settings › General: What's Going On green, the macOS accent color, or your own.
+
+### Improvements
+- **Builds from a clone.** Sguardo, the design system, comes with `git clone --recursive`: building from source has everything it needs.
+
 ## 0.7.5 · 2026-11-24
 
 A new look: the shapes, colors and motion of Sguardo, the design system shared by our apps.
