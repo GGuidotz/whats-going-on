@@ -578,7 +578,7 @@ struct SpaceView: View {
             switch space.phase {
             case .scanning:
                 Button(L("Interrompi")) { space.cancel() }
-                    .glassButton()
+                    .buttonStyle(.sgSecondary)
             case .idle:
                 HStack(spacing: 8) {
                     Button {
@@ -586,7 +586,7 @@ struct SpaceView: View {
                     } label: {
                         Label(L("Analizza il disco"), systemImage: "magnifyingglass")
                     }
-                    .glassProminentButton()
+                    .buttonStyle(.sgPrimary)
                     .keyboardShortcut("r", modifiers: .command)
                     folderMenu
                 }
@@ -612,7 +612,7 @@ struct SpaceView: View {
             Label(L("Analizza una cartella"), systemImage: "folder")
         }
         .menuStyle(.button)
-        .glassButton()
+        .buttonStyle(.sgSecondary)
         .fixedSize()
         .help(L("Legge solo la cartella che scegli: più veloce, e la mappa mostra solo quella."))
     }
@@ -625,7 +625,7 @@ struct SpaceView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             Button(L("Apri Impostazioni")) { FullDiskAccess.openSettings() }
-                .glassButton()
+                .buttonStyle(.sgSecondary)
         }
         .contentCard(padding: 10)
     }
@@ -871,7 +871,7 @@ private struct SpaceDebugBox: View {
                         NSPasteboard.general.setString(space.debugReport, forType: .string)
                         copied = true
                     }
-                    .glassButton()
+                    .buttonStyle(.sgSecondary)
                     .controlSize(.small)
                     if copied { Text(L("Copiato.")).font(.caption).foregroundStyle(.secondary) }
                 }
@@ -925,10 +925,10 @@ private struct SelectionCard: View {
                         .textSelection(.enabled)
                     HStack {
                         Button(L("Mostra nel Finder")) { space.reveal(path) }
-                            .glassButton()
+                            .buttonStyle(.sgSecondary)
                         if space.canTrash(path), let item = space.item(index) {
                             Button(L("Sposta nel Cestino")) { space.trash([item]) }
-                                .glassButton()
+                                .buttonStyle(.sgSecondary)
                         }
                     }
                     .controlSize(.small)
@@ -964,15 +964,15 @@ private struct TipCard: View {
                         if let bulk = tip.bulk {
                             if !bulk.isEmpty {
                                 Button(tip.bulkTitle ?? L("Sposta nel Cestino")) { space.trash(bulk) }
-                                    .glassButton()
+                                    .buttonStyle(.sgSecondary)
                             }
                         } else {
                             Button(L("Sposta nel Cestino")) { space.trash(tip.items) }
-                                .glassButton()
+                                .buttonStyle(.sgSecondary)
                         }
                     case .reveal:
                         Button(L("Apri nel Finder")) { space.reveal(tip.items[0].path) }
-                            .glassButton()
+                            .buttonStyle(.sgSecondary)
                     case .info:
                         EmptyView()
                     }

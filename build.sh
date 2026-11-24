@@ -43,6 +43,11 @@ cp CHANGELOG.md "$APP/Contents/Resources/CHANGELOG.md"   # Impostazioni › Aggi
 [ -f CHANGELOG.en.md ] && cp CHANGELOG.en.md "$APP/Contents/Resources/CHANGELOG.en.md"   # le stesse, in inglese
 
 SOURCES=(Sources/**/*.swift)
+# Sguardo, il sistema di design condiviso delle nostre app: i suoi sorgenti si compilano insieme all'app (un modulo solo,
+# niente import). Di solito sta in ~/Developer/design-system; altrove, SGUARDO_DIR=… ./build.sh
+SGUARDO="${SGUARDO_DIR:-$HOME/Developer/design-system}/swift/Sources/Sguardo"
+[ -d "$SGUARDO" ] || { echo "Manca Sguardo in $SGUARDO: clona il design system o imposta SGUARDO_DIR." >&2; exit 1; }
+SOURCES+=("$SGUARDO"/*.swift)
 # Apple Intelligence (FoundationModels, macOS 26): collegato "debole", così l'app parte anche su macOS 14 e 15.
 LINK=()
 SDK=$(xcrun --show-sdk-path 2>/dev/null || true)

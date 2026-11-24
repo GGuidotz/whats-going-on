@@ -298,7 +298,7 @@ private struct ToolButton: View {
         Button(action: action) {
             Label(title, systemImage: symbol)
         }
-        .glassButton()
+        .buttonStyle(.sgSecondary)
         .controlSize(.small)
         .padding(.top, 6)
     }

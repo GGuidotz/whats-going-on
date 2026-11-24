@@ -18,8 +18,12 @@ App macOS per la barra dei menu (Swift/SwiftUI, macOS 14+), companion di Cocaine
   i nodi ERROR (SensorReader.swift ne dà uno falso per `@_silgen_name`). Non sostituisce la compilazione.
 - Avvio AppKit (`Sources/App/Main.swift`), non `App` di SwiftUI: la voce nella barra è un NSStatusItem perché
   MenuBarExtra disegna l'etichetta come immagine modello, a un colore. Le impostazioni sono una finestra nostra.
-- Liquid Glass solo sui controlli che galleggiano (barra delle schede, pulsanti del pannello), sempre dietro
-  `if #available(macOS 26, *)`; il contenuto usa riempimenti standard (`Sources/Island/Style.swift`).
+- Grafica: Sguardo, il sistema di design comune (~/Developer/design-system, regole in DESIGN.md), compilato insieme
+  all'app da build.sh (`SGUARDO_DIR` se sta altrove). Accento `SG.Accent.whatsGoingOn` (verde calmo); righe e schede
+  con `SGPage`/`SGSection`/`contentCard`, pulsanti nel contenuto `.buttonStyle(.sgSecondary/.sgPrimary)`.
+  Liquid Glass solo sui controlli che galleggiano (barre delle schede `SGFloatingTabBar`, pulsanti in fondo al pannello
+  `floatingGlassButton`), sempre dietro `if #available(macOS 26, *)` (`Sources/Island/Style.swift`).
+  Le viste di `Sources/Island` usano Sguardo: Cocaine, per includerle, deve compilare anche i sorgenti di Sguardo.
 - Icona: `Resources/Icon/WhatsGoingOn.icon` (strati da `python3 -I tools/render-icon.py --layers …`), compilata da
   actool in build.sh e controllata da `tools/icon-check`; `AppIcon-1024.png` è il ripiego classico.
 - Avvisi a Cocaine: `cocaine://alert` li mostra solo se sei via da 20 s o con "Anche al Mac" (`alertWhenPresent`),

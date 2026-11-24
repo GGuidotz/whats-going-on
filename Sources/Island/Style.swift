@@ -1,8 +1,9 @@
-// Colori e vetro, in un posto solo.
+// Colori e vetro, in un posto solo. Le forme, i riempimenti e le molle vengono da Sguardo, il sistema di design comune
+// (~/Developer/design-system, compilato insieme all'app da build.sh): qui restano i colori di What's Going On.
 // Regola (HIG, Liquid Glass): il vetro solo sui controlli che galleggiano (la barra delle schede, i pulsanti in fondo
-// al pannello); il contenuto usa riempimenti standard. Il pannello stesso è un popover: su macOS 26 il vetro ce lo mette
-// il sistema. Prima di macOS 26 il vetro diventa un materiale sottile. Riduci trasparenza e Aumenta contrasto li
-// gestisce il sistema.
+// al pannello); il contenuto usa i riempimenti di Sguardo (velo traslucido + filo da 1 pt). Il pannello stesso è un
+// popover: su macOS 26 il vetro ce lo mette il sistema. Prima di macOS 26 il vetro diventa un materiale sottile.
+// Riduci trasparenza e Aumenta contrasto li gestisce il sistema.
 
 import AppKit
 import SwiftUI
@@ -39,20 +40,20 @@ enum Palette {
                                       startPoint: .leading, endPoint: .trailing)
 }
 
+extension SG.Accent {
+    /// L'accento di What's Going On per Sguardo: il verde calmo del marchio (Palette.calm).
+    static let whatsGoingOn = SG.Accent(NSColor(srgbRed: 0.20, green: 0.78, blue: 0.45, alpha: 1))
+}
+
 extension View {
-    /// Vetro per i controlli che galleggiano. Mai per il contenuto.
-    @ViewBuilder
-    func glassSurface(in shape: some Shape, interactive: Bool = false) -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
-        } else {
-            self.background(.ultraThinMaterial, in: shape)
-        }
+    /// Vetro per i controlli che galleggiano. Mai per il contenuto. Prima di macOS 26: materiale + velo + filo (Sguardo).
+    func glassSurface(in shape: some InsettableShape, interactive: Bool = false) -> some View {
+        sgFloatingChrome(in: shape, interactive: interactive)
     }
 
-    /// Pulsante di vetro (secondario).
+    /// Pulsante di vetro (secondario), solo nelle barre che galleggiano. Nel contenuto: `.buttonStyle(.sgSecondary)`.
     @ViewBuilder
-    func glassButton() -> some View {
+    func floatingGlassButton() -> some View {
         if #available(macOS 26.0, *) {
             self.buttonStyle(.glass)
         } else {
@@ -60,9 +61,9 @@ extension View {
         }
     }
 
-    /// Il pulsante principale, uno per vista: vetro colorato.
+    /// Il pulsante principale di una barra che galleggia: vetro colorato. Nel contenuto: `.buttonStyle(.sgPrimary)`.
     @ViewBuilder
-    func glassProminentButton() -> some View {
+    func floatingGlassProminentButton() -> some View {
         if #available(macOS 26.0, *) {
             self.buttonStyle(.glassProminent)
         } else {
@@ -70,9 +71,9 @@ extension View {
         }
     }
 
-    /// Una scheda del contenuto: non è vetro (il vetro è dei controlli), ma ci somiglia: un velo chiaro su cui passa il
-    /// vetro del pannello e un filo di luce sul bordo alto. Tutto statico: niente sfocature in più, niente animazioni.
-    func contentCard(padding: CGFloat = 12, radius: CGFloat = 14) -> some View {
+    /// Una scheda del contenuto, come le righe di Sguardo: velo traslucido (più bianco della finestra in chiaro), filo da
+    /// 1 pt, angoli continui da 16 pt. Niente vetro (il vetro è dei controlli), niente ombre, niente animazioni.
+    func contentCard(padding: CGFloat = 12, radius: CGFloat = SG.Radius.row) -> some View {
         self.padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .modifier(ContentCardBackground(radius: radius))
@@ -81,23 +82,15 @@ extension View {
 
 private struct ContentCardBackground: ViewModifier {
     var radius: CGFloat
-    @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        let dark = scheme == .dark
-        let strong = contrast == .increased
         content
-            .background(dark ? Color.white.opacity(strong ? 0.12 : 0.07) : Color.white.opacity(strong ? 0.8 : 0.5), in: shape)
+            .sgRowSurface(in: shape)
             .overlay {
-                shape.strokeBorder(
-                    LinearGradient(colors: [Color.white.opacity(dark ? 0.22 : 0.9), Color.white.opacity(dark ? 0.04 : 0.3)],
-                                   startPoint: .top, endPoint: .bottom),
-                    lineWidth: 0.75)
-            }
-            .overlay {
-                if strong { shape.strokeBorder(Color.primary.opacity(0.25), lineWidth: 1) }
+                // Aumenta contrasto: un bordo pieno sopra il filo.
+                if contrast == .increased { shape.strokeBorder(Color.primary.opacity(0.35), lineWidth: 1) }
             }
     }
 }

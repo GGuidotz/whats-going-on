@@ -116,7 +116,7 @@ struct SpaceTableView: View {
             Button(L("Togli le spunte")) { space.checked = [] }
                 .buttonStyle(.borderless)
             Button(L("Sposta nel Cestino")) { space.trashChecked() }
-                .glassButton()
+                .buttonStyle(.sgSecondary)
         }
         .font(.callout)
         .controlSize(.small)

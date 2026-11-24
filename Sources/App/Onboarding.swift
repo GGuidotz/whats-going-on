@@ -64,12 +64,13 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.horizontal, 36)
             .padding(.top, 44)
-            .transition(.opacity)
+            .transition(reduceMotion ? .opacity : .sgBlurReplace)
             .id(step)
 
             footer
         }
         .frame(width: Self.size.width, height: Self.size.height)
+        .sguardoAccent(.whatsGoingOn)
         .id(prefs.language)
     }
 
@@ -82,12 +83,11 @@ struct OnboardingView: View {
                 .frame(width: 96, height: 96)
                 .accessibilityHidden(true)
             Text(L("Benvenuto in What's Going On"))
-                .font(.largeTitle.weight(.semibold))
-                .fontDesign(.rounded)
+                .font(SG.Font.title)
                 .multilineTextAlignment(.center)
             Text(L("Ti dice cosa succede nel Mac, in una frase, dalla barra dei menu. Pesa pochissimo: legge solo ciò che mostri."))
-                .font(.title3)
-                .foregroundStyle(.secondary)
+                .font(SG.Font.instruction)
+                .foregroundStyle(SG.Ink.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             MenuBarPreview(monitor: monitor, prefs: prefs)
@@ -177,20 +177,17 @@ struct OnboardingView: View {
 
             Spacer()
 
-            GlassGroup(spacing: 8) {
-                HStack(spacing: 8) {
-                    if step > 0 {
-                        Button(L("Indietro")) { go(step - 1) }
-                            .glassButton()
-                            .keyboardShortcut(.cancelAction)
-                    }
-                    Button(step == steps - 1 ? L("Inizia") : L("Avanti")) {
-                        if step == steps - 1 { finish() } else { go(step + 1) }
-                    }
-                    .glassProminentButton()
-                    .keyboardShortcut(.defaultAction)
+            HStack(spacing: 10) {
+                if step > 0 {
+                    Button(L("Indietro")) { go(step - 1) }
+                        .buttonStyle(SGCapsuleButtonStyle(.secondary, size: .large))
+                        .keyboardShortcut(.cancelAction)
                 }
-                .controlSize(.large)
+                Button(step == steps - 1 ? L("Inizia") : L("Avanti")) {
+                    if step == steps - 1 { finish() } else { go(step + 1) }
+                }
+                .buttonStyle(SGCapsuleButtonStyle(.primary, size: .large))
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(.horizontal, 24)
@@ -198,7 +195,7 @@ struct OnboardingView: View {
     }
 
     private func go(_ next: Int) {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { step = min(max(0, next), steps - 1) }
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : SG.Motion.standard) { step = min(max(0, next), steps - 1) }
     }
 }
 
@@ -216,12 +213,11 @@ private struct StepPage<Content: View>: View {
                 .foregroundStyle(.tint)
                 .accessibilityHidden(true)
             Text(title)
-                .font(.title.weight(.semibold))
-                .fontDesign(.rounded)
+                .font(SG.Font.title)
                 .accessibilityAddTraits(.isHeader)
             Text(text)
-                .font(.title3)
-                .foregroundStyle(.secondary)
+                .font(SG.Font.instruction)
+                .foregroundStyle(SG.Ink.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 12) { content }
                 .padding(.top, 6)
@@ -268,7 +264,7 @@ private struct NotificationPermission: View {
                     .foregroundStyle(.orange)
             default:
                 Button(L("Consenti le notifiche")) { request() }
-                    .glassButton()
+                    .buttonStyle(.sgSecondary)
                 Text(L("Servono quando Cocaine non può mostrare l'avviso."))
                     .font(.callout)
                     .foregroundStyle(.secondary)

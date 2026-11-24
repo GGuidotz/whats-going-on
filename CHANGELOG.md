@@ -3,6 +3,15 @@
 Formato: `## <versione> · <data>`, poi `### Novità`, `### Miglioramenti`, `### Correzioni`, una riga `- ` per
 cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggiornamenti (Sources/App/Changelog.swift).
 
+## 0.7.5 · 2026-11-24
+
+Una veste nuova: forme, colori e movimenti di Sguardo, il sistema di design comune alle nostre app.
+
+### Miglioramenti
+- **Impostazioni ridisegnate.** Righe su un velo traslucido con un filo sottile, menu a capsula e note brevi sotto ogni gruppo. La barra delle schede galleggia in fondo e mostra il nome della scheda scelta; ⌘1…⌘5 funzionano come prima.
+- **Pannello più pulito.** Le schede delle misure hanno angoli più morbidi e un bordo leggero; "Perché è lento?" è un pulsante a capsula. Il vetro resta solo sui pulsanti in fondo.
+- **Attrezzi, guida iniziale e novità nello stesso stile.** Pulsanti a capsula, la stessa barra delle schede delle impostazioni, il verde di What's Going On come colore d'accento. Disinstalla è rosso, perché sposta l'app nel Cestino.
+
 ## 0.7.1 · 2026-11-17
 
 Più sicurezza: firma più stretta, cronologia riservata, diagnostica senza nomi di app.

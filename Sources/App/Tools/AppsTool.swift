@@ -204,7 +204,7 @@ private struct AppRow: View {
                 Button(L("Chiudi")) {
                     note = AppCloser.quit(running, name: app.name, force: false)
                 }
-                .glassButton()
+                .buttonStyle(.sgSecondary)
                 .controlSize(.small)
                 Menu {
                     Button(L("Forza chiusura…")) { note = AppCloser.quit(running, name: app.name, force: true) }

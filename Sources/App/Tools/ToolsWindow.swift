@@ -137,41 +137,18 @@ struct ToolsView: View {
         .frame(minWidth: Self.minSize.width, maxWidth: .infinity, minHeight: Self.minSize.height, maxHeight: .infinity)
         .onAppear { model.monitor.needs.liveProcesses = state.tab == .apps }
         .onChange(of: state.tab) { _, tab in model.monitor.needs.liveProcesses = tab == .apps }
+        .sguardoAccent(.whatsGoingOn)
         .id(prefs.language)
     }
 }
 
-/// Le schede, nella stessa barra di vetro delle impostazioni. ⌘1, ⌘2, ⌘3.
+/// Le schede, nella stessa barra a capsula delle impostazioni (Sguardo): la scheda scelta mostra il nome. ⌘1…⌘5.
 private struct ToolsTabBar: View {
     @Binding var selection: ToolsTab
 
     var body: some View {
-        GlassGroup(spacing: 6) {
-            HStack(spacing: 2) {
-                ForEach(Array(ToolsTab.allCases.enumerated()), id: \.element) { index, tab in
-                    let selected = selection == tab
-                    Button {
-                        selection = tab
-                    } label: {
-                        Label(tab.title, systemImage: tab.symbol)
-                            .font(.callout.weight(selected ? .semibold : .regular))
-                            .frame(width: 110, height: 30)
-                            .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-                            .background {
-                                if selected {
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.08))
-                                }
-                            }
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
-                    .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
-                }
-            }
-            .padding(4)
-            .glassSurface(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
+        SGFloatingTabBar(ToolsTab.allCases.map { SGTab($0, title: $0.title, systemImage: $0.symbol) },
+                         selection: $selection, commandShortcuts: true)
     }
 }
 
@@ -228,10 +205,10 @@ struct MoleBox: View {
             if runner.isInstalled {
                 HStack(spacing: 8) {
                     Button(L("Anteprima")) { runner.run(command, dryRun: true); showOutput = true }
-                        .glassButton()
+                        .buttonStyle(.sgSecondary)
                         .disabled(busy)
                     Button(command == .clean ? L("Pulisci") : L("Ottimizza")) { runReal() }
-                        .glassProminentButton()
+                        .buttonStyle(.sgPrimary)
                         .disabled(busy || (command == .clean && !previewDone))
                     if busy, runner.current?.command == command {
                         ProgressView().controlSize(.small)
@@ -249,7 +226,7 @@ struct MoleBox: View {
                 HStack(spacing: 8) {
                     if MoleRunner.brew != nil {
                         Button(L("Installa con Homebrew")) { runner.run(.install, dryRun: false); showOutput = true }
-                            .glassButton()
+                            .buttonStyle(.sgSecondary)
                             .disabled(busy)
                         if runner.current?.command == .install { ProgressView().controlSize(.small) }
                     }
@@ -355,7 +332,7 @@ struct AdviceBox: View {
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Button(advice.state == .idle ? L("Chiedi consigli") : L("Chiedi di nuovo")) { ask() }
-                        .glassButton()
+                        .buttonStyle(.sgSecondary)
                         .controlSize(.small)
                         .disabled(advice.state == .working)
                     if advice.state == .working { ProgressView().controlSize(.small) }

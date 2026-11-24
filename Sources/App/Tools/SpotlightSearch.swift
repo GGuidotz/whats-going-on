@@ -84,7 +84,7 @@ struct SpotlightBox: View {
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { search.run() }
                 Button(L("Cerca")) { search.run() }
-                    .glassButton()
+                    .buttonStyle(.sgSecondary)
                     .disabled(search.text.trimmingCharacters(in: .whitespaces).count < 2)
             }
             .controlSize(.small)

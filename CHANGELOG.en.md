@@ -3,6 +3,15 @@
 English notes, same format as CHANGELOG.md (the Italian one is the reference). The app uses these when its language
 is English; versions missing here fall back to the Italian notes.
 
+## 0.7.5 · 2026-11-24
+
+A new look: the shapes, colors and motion of Sguardo, the design system shared by our apps.
+
+### Improvements
+- **Redesigned settings.** Rows on a translucent layer with a thin outline, capsule menus and short notes under each group. The tab bar floats at the bottom and shows the name of the selected tab; ⌘1…⌘5 work as before.
+- **Cleaner panel.** Metric cards have softer corners and a light border; "Why Is It Slow?" is a capsule button. Glass stays only on the buttons at the bottom.
+- **Tools, first-run guide and What's New in the same style.** Capsule buttons, the same tab bar as the settings, What's Going On green as the accent color. Uninstall is red, because it moves the app to the Trash.
+
 ## 0.7.1 · 2026-11-17
 
 More security: tighter signing, private history, diagnostics without app names.

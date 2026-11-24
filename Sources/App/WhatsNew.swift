@@ -109,14 +109,14 @@ struct WhatsNewView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button(L("Continua"), action: close)
-                    .glassProminentButton()
-                    .controlSize(.large)
+                    .buttonStyle(SGCapsuleButtonStyle(.primary, size: .large))
                     .keyboardShortcut(.defaultAction)
             }
             .padding(.horizontal, 32)
             .padding(.vertical, 16)
         }
         .frame(width: Self.size.width, height: Self.size.height)
+        .sguardoAccent(.whatsGoingOn)
     }
 
     private var header: some View {

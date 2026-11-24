@@ -82,7 +82,7 @@ struct StartupView: View {
                                 NSWorkspace.shared.open(url)
                             }
                         }
-                        .glassButton()
+                        .buttonStyle(.sgSecondary)
                         .controlSize(.small)
                     }
                 }

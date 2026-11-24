@@ -25,7 +25,7 @@ struct MetricRow<Detail: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                withAnimation(reduceMotion ? nil : .snappy(duration: 0.22)) { expanded.toggle() }
+                withAnimation(reduceMotion ? nil : SG.Motion.snappy) { expanded.toggle() }
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: symbol)

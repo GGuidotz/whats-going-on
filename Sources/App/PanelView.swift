@@ -50,6 +50,7 @@ struct PanelView: View {
         .frame(width: 360, height: min(contentHeight + footerHeight, maxHeight))
         .onPreferenceChange(HeightKey.self) { contentHeight = $0 }
         .onPreferenceChange(FooterHeightKey.self) { if $0 > 0 { footerHeight = $0 } }
+        .sguardoAccent(.whatsGoingOn)
         .onDisappear { model.clearDiagnosis() }   // riaprendo, una risposta vecchia non deve sembrare di adesso
     }
 
@@ -82,7 +83,7 @@ struct PanelView: View {
                     Label(L("Impostazioni"), systemImage: "gearshape")
                 }
                 .keyboardShortcut(",")
-                .glassButton()
+                .floatingGlassButton()
                 .help(L("Impostazioni") + " (⌘,)")
 
                 Button {
@@ -93,7 +94,7 @@ struct PanelView: View {
                         .labelStyle(.iconOnly)
                 }
                 .keyboardShortcut("t")
-                .glassButton()
+                .floatingGlassButton()
                 .help(L("Attrezzi: spazio, memoria e CPU") + " (⌘T)")
                 .accessibilityLabel(L("Attrezzi"))
 
@@ -104,7 +105,7 @@ struct PanelView: View {
                     } label: {
                         Label(L("Versione %@", version), systemImage: "arrow.down.circle.fill")
                     }
-                    .glassProminentButton()
+                    .floatingGlassProminentButton()
                     .tint(Palette.calm)
                     .help(L("È disponibile una nuova versione"))
                 }
@@ -117,7 +118,7 @@ struct PanelView: View {
                     Label(L("Esci"), systemImage: "power")
                 }
                 .keyboardShortcut("q")
-                .glassButton()
+                .floatingGlassButton()
                 .help(L("Esci da What's Going On") + " (⌘Q)")
             }
             .labelStyle(.titleAndIcon)
@@ -145,8 +146,7 @@ private struct WhySlowBox: View {
                     Label(model.diagnosis == nil ? L("Perché è lento?") : L("Controlla di nuovo"),
                           systemImage: "stethoscope")
                 }
-                .glassButton()
-                .controlSize(.small)
+                .buttonStyle(.sgSecondary)   // sta nel contenuto: capsula neutra, non vetro
                 if model.diagnosis != nil {
                     Button(L("Chiudi")) { model.clearDiagnosis() }
                         .buttonStyle(.borderless)

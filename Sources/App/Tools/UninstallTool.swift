@@ -376,10 +376,10 @@ private struct AppDetailCard: View {
                 }
                 HStack {
                     Button(L("Mostra nel Finder")) { model.reveal(app.path) }
-                        .glassButton()
+                        .buttonStyle(.sgSecondary)
                     if app.isRemovable {
                         Button(L("Disinstalla")) { model.uninstall(app) }
-                            .glassProminentButton()
+                            .buttonStyle(.sgDestructive)
                             .disabled(model.leftoversLoading)
                     }
                 }
